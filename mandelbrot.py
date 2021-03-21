@@ -190,6 +190,7 @@ class Mandelbrot_explorer():
                 self.mand.update_set()
             elif (event.inaxes == self.ax_button) & (event.name == 'button_press_event'):
                 self.mand.rgb_thetas = np.random.uniform(size=3)
+                self.mand.update_colortable()
     
         # Updating the figure
         self.graph.set_data(self.mand.to_image())
