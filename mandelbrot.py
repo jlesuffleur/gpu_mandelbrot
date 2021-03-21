@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numba import jit
 from matplotlib.widgets import Slider, Button
+from numba import cuda
 
 @jit
 def smooth_iter(c, maxiter):
@@ -40,6 +41,19 @@ def compute_set(creal, cim, maxiter):
             mat[x,y] = smooth_iter(c, maxiter)
     return(mat)
 
+@cuda.jit
+def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter):
+    
+    x = cuda.blockIdx.x
+    y = cuda.threadIdx.x
+    # Mapping pixel to C
+    creal = xmin + x / mat.shape[0] * (xmax - xmin)
+    cim = ymin + y / mat.shape[1] * (ymax - ymin)
+    
+    # Initialisation of C and Z
+    c = complex(creal, cim)
+
+    mat[x,y] = smooth_iter(c, maxiter)
 
 
 @jit
@@ -72,27 +86,36 @@ class Mandelbrot():
         Returns:
             array (numpy.ndarray): the Mandelbrot set as a 2D array of shape (xpixels, ypixels)
     """
-    def __init__(self, xpixels=1000, maxiter=100, coord=(-2.6, 1.85, -1.25, 1.25)):
+    def __init__(self, xpixels=1000, maxiter=100, coord=(-2.6, 1.85, -1.25, 1.25),
+                 gpu = False):
         self.xpixels = xpixels
         self.maxiter = maxiter
         self.coord = coord
+        self.gpu = gpu
         self.rgb_thetas = [3.3, 4, 4.4]
+        self.colortable = None
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
         # Initialisation of output matrix to 0
         self.set = np.zeros((self.xpixels, self.ypixels))   
         self.update_set()
+        self.update_colortable()
         
     def update_set(self):
-        # Mapping pixels to C
-        creal = np.linspace(self.coord[0], self.coord[1], self.xpixels)
-        cim = np.linspace(self.coord[2], self.coord[3], self.ypixels)
-    
-        self.set = compute_set(creal, cim, self.maxiter)
-
-    def to_image(self, ncol = 2**12, ncycle = 40):
-        
+        if(self.gpu):
+            # Pixel mapping is done in compute_self_gpu
+            self.set = np.zeros((self.xpixels, self.ypixels))
+            # Compute set with GPU
+            compute_set_gpu[self.xpixels, self.ypixels](self.set, *self.coord, self.maxiter)
+        else:
+            # Mapping pixels to C
+            creal = np.linspace(self.coord[0], self.coord[1], self.xpixels)
+            cim = np.linspace(self.coord[2], self.coord[3], self.ypixels)
+            # Compute set with CPU
+            self.set = compute_set(creal, cim, self.maxiter)        
+            
+    def update_colortable(self, ncol = 2**12):
         def colormap(x, theta = [0, 0, 0]):
             y = x*2*math.pi + math.pi
             y = np.column_stack((y + theta[0],
@@ -102,8 +125,11 @@ class Mandelbrot():
             return(val)
 
         lin = np.linspace(0, 1, ncol)
-        colortable = colormap(lin, self.rgb_thetas)
-        mat_col = colorize(self.set.T, colortable, ncycle)
+        self.colortable = colormap(lin, self.rgb_thetas)
+            
+    def to_image(self, ncycle = 40):
+        
+        mat_col = colorize(self.set.T, self.colortable, ncycle)
         return(mat_col)
         
     def draw(self, filename = None, dpi = 72):
