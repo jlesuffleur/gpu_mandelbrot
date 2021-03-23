@@ -170,8 +170,7 @@ class Mandelbrot():
         if(loop):
             images += images[::-2]
         # Make GIF
-        img.save(fp=out, format='GIF', append_images=images,
-         save_all=True, duration=200, loop=0)     
+        imageio.mimsave(out, images)   
     
     def explore(self, dpi = 72):
         self.explorer = Mandelbrot_explorer(self, dpi)
@@ -244,7 +243,3 @@ class Mandelbrot_explorer():
             self.graph.set_data(self.mand.set)
             plt.draw()       
             plt.show()
-
-if __name__ == '__main__':
-    mand = Mandelbrot(1200, 500)
-    mand.draw()
