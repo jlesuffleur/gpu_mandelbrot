@@ -149,8 +149,8 @@ class Mandelbrot():
         if filename is not None:
             plt.savefig(filename, dpi=dpi)
             
-    def zoom_gif(self, x, y, out, n_frames = 100, loop = True):
-        """Note that the Mandelbrot object is modified by the zoom_gif"""
+    def animate(self, x, y, out, n_frames = 100, loop = True):
+        """Note that the Mandelbrot object is modified by this function"""
         # Zoom scale: gaussian shape, from 0% (s=1) to 40% (s=0.6)
         def gaussian(n, sig = 1):
             x = np.linspace(-1, 1, n)
