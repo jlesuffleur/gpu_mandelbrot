@@ -33,12 +33,19 @@ mand.draw('mandelbrot.png')
 ### Make a zoom animation
 
 ```python
+# Let's change the color, and make a smaller image to avoid overloading the browser
+mand = Mandelbrot(xpixels = 500, rgb_thetas = np.array([.2, .4 , 1.1]))
 # Point to zoom at
 x_real = -1.7576871663606164
 y_imag = 0.017457512970355783
 mand.animate(x_real, y_imag, 'mandelbrot.gif')
 ```
 ![](img/mandelbrot.gif)
+
+## Runtime 🚀
+
+Computing a sequence of `100` frames of pictures of size `1800*1000` pixels, with `2000` iterations takes approx **1 second** on a Tesla K80 GPU.
+
 
 ## Requirements
 - NumPy
