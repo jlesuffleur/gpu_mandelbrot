@@ -8,6 +8,7 @@
 - Save still and animated images
 - Smooth coloring
 - Customizable color palette
+- 100% Python code 🐍
 
 ## Quick start
 
