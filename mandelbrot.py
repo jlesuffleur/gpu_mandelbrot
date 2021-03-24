@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 import math
 import numpy as np
@@ -8,6 +7,7 @@ from matplotlib.widgets import Slider, Button
 from numba import cuda
 from PIL import Image
 import imageio
+
 
 @jit
 def smooth_iter(c, maxiter):
@@ -23,13 +23,12 @@ def smooth_iter(c, maxiter):
         # Equivalent to abs(z) > esc_radius
         if z.real*z.real + z.imag*z.imag > esc_radius_2:
             # Smooth iteration count
-            return(n + 1 - math.log(math.log(abs(z)))/math.log(2))
+            return n + 1 - math.log(math.log(abs(z)))/math.log(2)
     # Otherwise: leave iteration count to 0
-    return(0)
+    return 0
 
 @jit
 def compute_set(creal, cim, maxiter, colortable, ncycle):
-    
     xpixels = len(creal)
     ypixels = len(cim)
     mat = np.zeros((ypixels, xpixels, 3), np.uint8)
@@ -47,11 +46,10 @@ def compute_set(creal, cim, maxiter, colortable, ncycle):
                 mat[y,x,0] = colortable[col_i,0]
                 mat[y,x,1] = colortable[col_i,1]
                 mat[y,x,2] = colortable[col_i,2]
-    return(mat)
+    return mat
 
 @cuda.jit
 def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
-    
     x = cuda.blockIdx.x
     y = cuda.threadIdx.x
     ncol = colortable.shape[0] - 1
@@ -70,6 +68,7 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
         mat[y,x,1] = colortable[col_i,1]
         mat[y,x,2] = colortable[col_i,2]
 
+
 class Mandelbrot():
     """Compute the Mandelbrot set
     
@@ -82,8 +81,9 @@ class Mandelbrot():
         Returns:
             array (numpy.ndarray): the Mandelbrot set as a 2D array of shape (xpixels, ypixels)
     """
-    def __init__(self, xpixels=1000, maxiter=100, coord=(-2.6, 1.85, -1.25, 1.25),
-                 gpu = False, ncycle=40, rgb_thetas=[3.3, 4, 4.4]):
+    def __init__(self, xpixels=1000, maxiter=100,
+                 coord=(-2.6, 1.85, -1.25, 1.25), gpu=False, ncycle=40,
+                 rgb_thetas=[3.3, 4, 4.4]):
         self.xpixels = xpixels
         self.maxiter = maxiter
         self.coord = coord
@@ -96,7 +96,7 @@ class Mandelbrot():
         # GPU: Number of threads per block is set to ypixels, but usually the 
         # maximum number of threads per block on a GPU is 1024. This require
         # to change the gridsize used.
-        if (self.ypixels >= 1024) & self.gpu:
+        if (self.ypixels >= 1024) and self.gpu:
             raise AttributeError('ypixels is too high for chosen GPU grid size')
             
         # Initialisation of colortable and set
@@ -104,7 +104,7 @@ class Mandelbrot():
         self.update_set()
 
         
-    def update_set(self, color = False):
+    def update_set(self, color=False):
         if(self.gpu):
             # Pixel mapping is done in compute_self_gpu
             self.set = np.zeros((self.ypixels, self.xpixels, 3), np.uint8)
@@ -120,28 +120,28 @@ class Mandelbrot():
             self.set = compute_set(creal, cim, self.maxiter,
                                    self.colortable, self.ncycle)
             
-    def update_colortable(self, ncol = 2**12):
+    def update_colortable(self, ncol=2**12):
         def colormap(x, theta = [0, 0, 0]):
             y = x*2*math.pi + math.pi
             y = np.column_stack((y + theta[0],
                                  y + theta[1],
                                  y + theta[2]))
             val = np.around(255*(0.5 + 0.5*np.cos(y))).astype(np.uint8)
-            return(val)
+            return val
 
         lin = np.linspace(0, 1, ncol)
         self.colortable = colormap(lin, self.rgb_thetas)
 
-    def draw_pil(self, filename = None):
+    def draw_pil(self, filename=None):
         img = Image.fromarray(self.set, 'RGB')
         if filename is not None:
             img.save(filename) # fast (save in jpg) (compare reading as well)
         else:
             img.show() # slow
         
-    def draw(self, filename = None, dpi = 72):
+    def draw(self, filename=None, dpi=72):
         plt.subplots(figsize=(self.xpixels/dpi, self.ypixels/dpi))
-        plt.imshow(self.set, extent = self.coord, origin = 'lower')
+        plt.imshow(self.set, extent=self.coord, origin='lower')
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis('off')
         plt.show()
@@ -149,7 +149,7 @@ class Mandelbrot():
         if filename is not None:
             plt.savefig(filename, dpi=dpi)
             
-    def animate(self, x, y, out, n_frames = 100, loop = True):
+    def animate(self, x, y, out, n_frames=100, loop=True):
         """Note that the Mandelbrot object is modified by this function"""
         # Zoom scale: gaussian shape, from 0% (s=1) to 40% (s=0.6)
         def gaussian(n, sig = 1):
@@ -172,7 +172,7 @@ class Mandelbrot():
         # Make GIF
         imageio.mimsave(out, images)   
     
-    def explore(self, dpi = 72):
+    def explore(self, dpi=72):
         self.explorer = Mandelbrot_explorer(self, dpi)
         
     def zoom_at(self, x, y, s):
@@ -193,14 +193,14 @@ class Mandelbrot():
                       y - yrange * s,
                       y + yrange * s]
 
+
 class Mandelbrot_explorer():
-    
-    def __init__(self, mand, dpi = 72):
+    def __init__(self, mand, dpi=72):
         self.mand = mand
         self.fig, self.ax = plt.subplots(figsize=(mand.xpixels/dpi,
                                                   mand.ypixels/dpi))
         self.graph = plt.imshow(mand.set,
-                                extent = mand.coord, origin = 'lower')
+                                extent=mand.coord, origin='lower')
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis('off')
         self.ax_sld = plt.axes([0.3, 0.005, 0.4, 0.02])
@@ -214,10 +214,10 @@ class Mandelbrot_explorer():
         self.button.on_clicked(self.onclick)
         self.sld_maxiter.on_changed(self.onclick)
         self.cid1 = self.fig.canvas.mpl_connect('scroll_event', self.onclick)
-        self.cid2 = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+        self.cid2 = self.fig.canvas.mpl_connect('button_press_event',
+                                                self.onclick)
         
     def onclick(self, event):
-        
         update = False
         
         # If event is an integer: it comes from the Slider
@@ -233,7 +233,8 @@ class Mandelbrot_explorer():
                 self.mand.zoom_at(event.xdata, event.ydata, zoom)
                 self.graph.set_extent(self.mand.coord)
                 update = True
-            elif (event.inaxes == self.ax_button) & (event.name == 'button_press_event'):
+            elif ((event.inaxes == self.ax_button) and
+                  (event.name == 'button_press_event')):
                 self.mand.rgb_thetas = np.random.uniform(size=3)
                 self.mand.update_colortable()
                 update = True
