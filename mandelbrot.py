@@ -1,3 +1,11 @@
+"""Compute and draw/explore/animate the Mandelbrot set.
+
+Fast computation of the Mandelbrot set using Numba on CPU or GPU. The set is
+smoothly colored with custom colortables. 
+
+  mand = Mandelbrot()
+  mand.explore()
+"""
 
 import math
 import numpy as np
@@ -8,9 +16,19 @@ from numba import cuda
 from PIL import Image
 import imageio
 
-
 @jit
 def smooth_iter(c, maxiter):
+    """ Smooth number of iteration in the Mandelbrot set for given c
+    
+    Args:
+        c: complex
+            point of the complex plane
+        maxiter: int 
+            maximal number of iterations
+
+    Returns:
+        float: smooth iteration count at escape, 0 if maxiter is reached
+    """
     # Escape radius squared: 2**2 is enough, but using a higher radius yields
     # better estimate of the smooth iteration count
     esc_radius_2 = 8**2
@@ -19,7 +37,7 @@ def smooth_iter(c, maxiter):
     # Mandelbrot iteration
     for n in range(maxiter):
         z = z*z + c
-        # If unbounded: save (smooth) iteration count
+        # If escape: save (smooth) iteration count
         # Equivalent to abs(z) > esc_radius
         if z.real*z.real + z.imag*z.imag > esc_radius_2:
             # Smooth iteration count
@@ -29,18 +47,38 @@ def smooth_iter(c, maxiter):
 
 @jit
 def compute_set(creal, cim, maxiter, colortable, ncycle):
+    """ Compute and color the Mandelbrot set (CPU version)
+    
+    Args:
+        creal: ndarray(dtype=float, ndim=1)
+            vector of real coordinates
+        cim: ndarray(dtype=float, ndim=1)
+            vector of imaginary coordinates
+        maxiter: int 
+            maximal number of iterations
+        colortable: ndarray(dtype=uint8, ndim=2)
+            cyclic RGB colortable 
+        ncycle: float
+            number of iteration before cycling the colortable
+
+    Returns:
+        ndarray(dtype=uint8, ndim=3): image of the Mandelbrot set
+    """
     xpixels = len(creal)
     ypixels = len(cim)
-    mat = np.zeros((ypixels, xpixels, 3), np.uint8)
     ncol = colortable.shape[0] - 1
     
+    # Output initialization
+    mat = np.zeros((ypixels, xpixels, 3), np.uint8)
+
     # Looping through pixels
     for x in range(xpixels):
         for y in range(ypixels):
             
-            # Initialisation of C
+            # Initialization of c
             c = complex(creal[x], cim[y])
             niter = smooth_iter(c, maxiter)
+            # If escaped: color the set
             if niter != 0:
                 col_i = round(niter % ncycle / ncycle * ncol)
                 mat[y,x,0] = colortable[col_i,0]
@@ -50,6 +88,28 @@ def compute_set(creal, cim, maxiter, colortable, ncycle):
 
 @cuda.jit
 def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
+    """ Compute and color the Mandelbrot set (GPU version)
+    
+    Uses a 1D-grid with xpixels blocks of ypixels threads. For larger images, 
+    one may need to change the grid because of the limitations of the GPU.
+    
+    Args:
+        mat: ndarray(dtype=uint8, ndim=3)
+            shared data to write the output image of the set
+        xmin, xmax, ymin, ymax: float
+            coordinates of the set
+        maxiter: int 
+            maximal number of iterations
+        colortable: ndarray(dtype=uint8, ndim=2)
+            cyclic RGB colortable 
+        ncycle: float
+            number of iteration before cycling the colortable
+
+    Returns:
+        mat: ndarray(dtype=uint8, ndim=3)
+            shared data to write the output image of the set
+    """
+    # Retrieve x and y from CUDA grid coordinates
     x = cuda.blockIdx.x
     y = cuda.threadIdx.x
     ncol = colortable.shape[0] - 1
@@ -58,10 +118,11 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
     creal = xmin + x / mat.shape[1] * (xmax - xmin)
     cim = ymin + y / mat.shape[0] * (ymax - ymin)
     
-    # Initialisation of C and Z
+    # Initialization of c
     c = complex(creal, cim)
 
     niter = smooth_iter(c, maxiter)
+    # If escaped: color the set
     if niter != 0:
         col_i = round(niter % ncycle / ncycle * ncol)
         mat[y,x,0] = colortable[col_i,0]
@@ -72,14 +133,14 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
 class Mandelbrot():
     """Compute the Mandelbrot set
     
-        Args:
-            xpixels (int): lenght of x-axis
-            maxiter (int): maximal number of iterations
-            xmin, xmax (float): min and max coordinates for x-axis (real part)
-            ymin, ymax (float): min and max coordinates for y-axix (imaginary part)
-    
-        Returns:
-            array (numpy.ndarray): the Mandelbrot set as a 2D array of shape (xpixels, ypixels)
+    Args:
+        xpixels (int): lenght of x-axis
+        maxiter (int): maximal number of iterations
+        xmin, xmax (float): min and max coordinates for x-axis (real part)
+        ymin, ymax (float): min and max coordinates for y-axix (imaginary part)
+
+    Returns:
+        array (numpy.ndarray): the Mandelbrot set as a 2D array of shape (xpixels, ypixels)
     """
     def __init__(self, xpixels=1000, maxiter=100,
                  coord=(-2.6, 1.85, -1.25, 1.25), gpu=False, ncycle=40,
