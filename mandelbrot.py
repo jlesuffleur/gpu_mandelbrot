@@ -16,6 +16,34 @@ from numba import cuda
 from PIL import Image
 import imageio
 
+
+def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
+    """ Sinusoidal color table
+    
+    Cyclic color table made with a sinus function for each color channel
+    
+    Args:
+        rgb_thetas: [float, float, float]
+            phase for each color channel
+        ncol: int 
+            number of color in the output table
+
+    Returns:
+        ndarray(dtype=uint8, ndim=2): color table
+    """
+    def colormap(x, rgb_thetas):
+        # x in [0,1]
+        # Compute the frequency and phase of each channel
+        y = x*2*math.pi + math.pi
+        y = np.column_stack((y + rgb_thetas[0] * 2 * math.pi,
+                             y + rgb_thetas[1] * 2 * math.pi,
+                             y + rgb_thetas[2] * 2 * math.pi))
+        # Set amplitude to [0,255]
+        val = np.around(255*(0.5 + 0.5*np.cos(y))).astype(np.uint8)
+        return val
+
+    return colormap(np.linspace(0, 1, ncol), rgb_thetas)
+
 @jit
 def smooth_iter(c, maxiter):
     """ Smooth number of iteration in the Mandelbrot set for given c
@@ -131,26 +159,31 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
 
 
 class Mandelbrot():
-    """Compute the Mandelbrot set
-    
-    Args:
-        xpixels (int): lenght of x-axis
-        maxiter (int): maximal number of iterations
-        xmin, xmax (float): min and max coordinates for x-axis (real part)
-        ymin, ymax (float): min and max coordinates for y-axix (imaginary part)
-
-    Returns:
-        array (numpy.ndarray): the Mandelbrot set as a 2D array of shape (xpixels, ypixels)
-    """
-    def __init__(self, xpixels=1000, maxiter=100,
+    """Mandelbrot set object"""
+    def __init__(self, xpixels=1000, maxiter=500,
                  coord=(-2.6, 1.85, -1.25, 1.25), gpu=False, ncycle=40,
-                 rgb_thetas=[3.3, 4, 4.4]):
+                 colortable=None):
+        """Mandelbrot set object
+    
+        Args:
+            xpixels: int
+                image width (in pixels)
+            maxiter: int
+                maximal number of iterations
+            coord: (float, float, float, float)
+                coordinates of the frame in the complex space
+            gpu: boolean
+                use CUDA on GPU to compute the set
+            ncycle: float
+                number of iteration before cycling the colortable
+            colortable: ndarray(dtype=uint8, ndim=2)
+                color table used to color the set (preferably cyclic)
+        """
         self.xpixels = xpixels
         self.maxiter = maxiter
         self.coord = coord
         self.gpu = gpu
         self.ncycle = ncycle
-        self.rgb_thetas = rgb_thetas
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
@@ -160,12 +193,18 @@ class Mandelbrot():
         if (self.ypixels >= 1024) and self.gpu:
             raise AttributeError('ypixels is too high for chosen GPU grid size')
             
-        # Initialisation of colortable and set
-        self.update_colortable()
+        # Initialization of colortable
+        if colortable is None:
+            colortable = sin_colortable()
+        self.colortable = colortable
+        # Compute the set
         self.update_set()
 
-        
-    def update_set(self, color=False):
+    def update_set(self):
+        """Updates the set
+    
+        Compute and color the Mandelbrot set, using CPU or GPU
+        """
         if(self.gpu):
             # Pixel mapping is done in compute_self_gpu
             self.set = np.zeros((self.ypixels, self.xpixels, 3), np.uint8)
@@ -180,20 +219,9 @@ class Mandelbrot():
             # Compute set with CPU
             self.set = compute_set(creal, cim, self.maxiter,
                                    self.colortable, self.ncycle)
-            
-    def update_colortable(self, ncol=2**12):
-        def colormap(x, theta = [0, 0, 0]):
-            y = x*2*math.pi + math.pi
-            y = np.column_stack((y + theta[0],
-                                 y + theta[1],
-                                 y + theta[2]))
-            val = np.around(255*(0.5 + 0.5*np.cos(y))).astype(np.uint8)
-            return val
-
-        lin = np.linspace(0, 1, ncol)
-        self.colortable = colormap(lin, self.rgb_thetas)
 
     def draw_pil(self, filename=None):
+        """Draw or save, using PIL"""
         img = Image.fromarray(self.set, 'RGB')
         if filename is not None:
             img.save(filename) # fast (save in jpg) (compare reading as well)
@@ -201,40 +229,16 @@ class Mandelbrot():
             img.show() # slow
         
     def draw(self, filename=None, dpi=72):
+        """Draw or save, using Matplotlib"""
         plt.subplots(figsize=(self.xpixels/dpi, self.ypixels/dpi))
         plt.imshow(self.set, extent=self.coord, origin='lower')
+        # Remove axis and margins
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis('off')
         plt.show()
         # Write figure to file
         if filename is not None:
             plt.savefig(filename, dpi=dpi)
-            
-    def animate(self, x, y, out, n_frames=100, loop=True):
-        """Note that the Mandelbrot object is modified by this function"""
-        # Zoom scale: gaussian shape, from 0% (s=1) to 40% (s=0.6)
-        def gaussian(n, sig = 1):
-            x = np.linspace(-1, 1, n)
-            return np.exp(-np.power(x, 2.) / (2 * np.power(sig, 2.)))
-        s = 1 - gaussian(n_frames, 1/2)*.4
-        
-        images = [self.set]
-        # Making list images
-        for i in range(1, n_frames):
-    
-            self.szoom_at(x,y,s[i])
-            # add some iterations while zooming
-            self.update_set()
-            images.append(self.set)
-            
-        # Go backward, one image in two
-        if(loop):
-            images += images[::-2]
-        # Make GIF
-        imageio.mimsave(out, images)   
-    
-    def explore(self, dpi=72):
-        self.explorer = Mandelbrot_explorer(self, dpi)
         
     def zoom_at(self, x, y, s):
         xrange = (self.coord[1] - self.coord[0])/2
@@ -243,6 +247,7 @@ class Mandelbrot():
                       x + xrange * s,
                       y - yrange * s,
                       y + yrange * s]
+        
     def szoom_at(self, x, y, s):
         """Soft zoom (continuous)"""
         xrange = (self.coord[1] - self.coord[0])/2
@@ -252,52 +257,98 @@ class Mandelbrot():
         self.coord = [x - xrange * s,
                       x + xrange * s,
                       y - yrange * s,
-                      y + yrange * s]
+                      y + yrange * s]      
+        
+    def animate(self, x, y, file_out, n_frames=100, loop=True):
+        """Note that the Mandelbrot object is modified by this function"""
+        # Zoom scale: gaussian shape, from 0% (s=1) to 40% (s=0.6)
+        # => zoom scale (i.e. speed) is increasing, then decreasing
+        def gaussian(n, sig = 1):
+            x = np.linspace(-1, 1, n)
+            return np.exp(-np.power(x, 2.) / (2 * np.power(sig, 2.)))
+        s = 1 - gaussian(n_frames, 1/2)*.4
+        
+        images = [self.set]
+        # Making list of images
+        for i in range(1, n_frames):
+            # Zoom at (x,y)
+            self.szoom_at(x,y,s[i])
+            # Update the set
+            self.update_set()
+            images.append(self.set)
+            
+        # Go backward, one image in two (i.e. 2x speed)
+        if(loop):
+            images += images[::-2]
+        # Make GIF
+        imageio.mimsave(file_out, images)   
+    
+    def explore(self, dpi=72):
+        # It is important to keep track of the object in a variable, so the
+        # slider and button are responsive
+        self.explorer = Mandelbrot_explorer(self, dpi)
 
 
 class Mandelbrot_explorer():
     def __init__(self, mand, dpi=72):
         self.mand = mand
+        # Plot the set
         self.fig, self.ax = plt.subplots(figsize=(mand.xpixels/dpi,
                                                   mand.ypixels/dpi))
         self.graph = plt.imshow(mand.set,
                                 extent=mand.coord, origin='lower')
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis('off')
+        # Add a slider of number of iterations
         self.ax_sld = plt.axes([0.3, 0.005, 0.4, 0.02])
-        self.sld_maxiter = Slider(self.ax_sld, 'Iterations', 0, 2000,
+        self.sld_maxiter = Slider(self.ax_sld, 'Iterations', 0,
+                                 max(2000, self.mand.maxiter),
                              valinit=mand.maxiter, valstep=50)
+        # Add a button to randomly change the color table
         self.ax_button = plt.axes([0.45, 0.03, 0.1, 0.035])
         self.button = Button(self.ax_button, 'Random colors')
         plt.sca(self.ax)
         plt.show()
         
+        # Note that it is mandatory to keep track of those objects so they are
+        # not deleted by Matplotlib, and callbacks can be used
+        # We call the same function for all event: self.onclick
         self.button.on_clicked(self.onclick)
         self.sld_maxiter.on_changed(self.onclick)
+        # Responsiveness for any click or scroll
         self.cid1 = self.fig.canvas.mpl_connect('scroll_event', self.onclick)
         self.cid2 = self.fig.canvas.mpl_connect('button_press_event',
                                                 self.onclick)
         
     def onclick(self, event):
+        # This function is called by any click/scroll, button click or slider
+        # value change
+        
         update = False
         
         # If event is an integer: it comes from the Slider
         if(isinstance(event, int)):
+            # Slider event: update maxiter
             self.mand.maxiter = event
             update = True
         # Otherwise: check which axe was clicked
         else:    
             if event.inaxes == self.ax:
+                # Click or scroll in the main axe: zoom event
+                # Default: zoom in
                 zoom = 1/2
                 if event.button in ('down', 3):
+                    # If right click or scroll down: zoom out
                     zoom = 1/zoom
+                # Zoom and update figure coordinates
                 self.mand.zoom_at(event.xdata, event.ydata, zoom)
                 self.graph.set_extent(self.mand.coord)
                 update = True
             elif ((event.inaxes == self.ax_button) and
                   (event.name == 'button_press_event')):
-                self.mand.rgb_thetas = np.random.uniform(size=3)
-                self.mand.update_colortable()
+                # If the button is pressed: randomly change colortable
+                rgb_thetas = np.random.uniform(size=3)
+                self.mand.colortable = sin_colortable(rgb_thetas)
                 update = True
         if update:
             # Updating the figure
