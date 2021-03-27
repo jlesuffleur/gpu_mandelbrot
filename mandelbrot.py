@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """Compute and draw/explore/animate the Mandelbrot set.
 
 Fast computation of the Mandelbrot set using Numba on CPU or GPU. The set is
@@ -356,3 +358,7 @@ class Mandelbrot_explorer():
             self.graph.set_data(self.mand.set)
             plt.draw()       
             plt.show()
+
+
+if __name__ == "__main__":
+    Mandelbrot().explore()
