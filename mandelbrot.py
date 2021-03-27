@@ -107,7 +107,10 @@ def compute_set(creal, cim, maxiter, colortable, ncycle):
             
             # Initialization of c
             c = complex(creal[x], cim[y])
+            # Get smooth iteration count
             niter = smooth_iter(c, maxiter)
+            # Power post-transform
+            niter = math.pow(niter, .5)
             # If escaped: color the set
             if niter != 0:
                 col_i = round(niter % ncycle / ncycle * ncol)
@@ -151,7 +154,10 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
     # Initialization of c
     c = complex(creal, cim)
 
+    # Get smooth iteration count
     niter = smooth_iter(c, maxiter)
+    # Power post-transform
+    niter = math.pow(niter, .5)
     # If escaped: color the set
     if niter != 0:
         col_i = round(niter % ncycle / ncycle * ncol)
@@ -163,8 +169,8 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
 class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1000, maxiter=500,
-                 coord=(-2.6, 1.85, -1.25, 1.25), gpu=False, ncycle=40,
-                 colortable=None):
+                 coord=(-2.6, 1.85, -1.25, 1.25), gpu=False, ncycle=32,
+                 colortable=None, oversampling_size=1):
         """Mandelbrot set object
     
         Args:
@@ -180,12 +186,17 @@ class Mandelbrot():
                 number of iteration before cycling the colortable
             colortable: ndarray(dtype=uint8, ndim=2)
                 color table used to color the set (preferably cyclic)
+            oversampling_size: int
+                for each pixel, a [n, n] grid is computed where n is the
+                oversampling_size. Then, the average color of the n*n pixels
+                is taken. Set to 1 for no oversampling.
         """
         self.xpixels = xpixels
         self.maxiter = maxiter
         self.coord = coord
         self.gpu = gpu
         self.ncycle = ncycle
+        self.os = oversampling_size
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
@@ -193,7 +204,7 @@ class Mandelbrot():
         # maximum number of threads per block on a GPU is 1024. This require
         # to change the gridsize used.
         if (self.ypixels >= 1024) and self.gpu:
-            raise AttributeError('ypixels is too high for chosen GPU grid size')
+            raise AttributeError('image size is too high for GPU grid size')
             
         # Initialization of colortable
         if colortable is None:
@@ -207,20 +218,32 @@ class Mandelbrot():
     
         Compute and color the Mandelbrot set, using CPU or GPU
         """
+        # Apply ower post-transform to ncycle
+        ncycle = math.pow(self.ncycle, .5)
+        
+        # Oversampling by os
+        xp = self.xpixels*self.os
+        yp = self.ypixels*self.os
+        
         if(self.gpu):
             # Pixel mapping is done in compute_self_gpu
-            self.set = np.zeros((self.ypixels, self.xpixels, 3), np.uint8)
+            self.set = np.zeros((yp, xp, 3), np.uint8)
             # Compute set with GPU
-            compute_set_gpu[self.xpixels,
-                            self.ypixels](self.set, *self.coord, self.maxiter,
-                                          self.colortable, self.ncycle)
+            compute_set_gpu[xp,
+                            yp](self.set, *self.coord, self.maxiter,
+                                self.colortable, ncycle)
         else:
             # Mapping pixels to C
-            creal = np.linspace(self.coord[0], self.coord[1], self.xpixels)
-            cim = np.linspace(self.coord[2], self.coord[3], self.ypixels)
+            creal = np.linspace(self.coord[0], self.coord[1], xp)
+            cim = np.linspace(self.coord[2], self.coord[3], yp)
             # Compute set with CPU
             self.set = compute_set(creal, cim, self.maxiter,
-                                   self.colortable, self.ncycle)
+                                   self.colortable, ncycle)
+        # Reshaping to (ypixels, xpixels, 3)
+        self.set = (self.set
+                    .reshape((self.ypixels, self.os,
+                              self.xpixels, self.os, 3))
+                    .mean(3).mean(1).astype(np.uint8))
 
     def draw_pil(self, filename=None):
         """Draw or save, using PIL"""
