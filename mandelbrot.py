@@ -123,8 +123,7 @@ def compute_set(creal, cim, maxiter, colortable, ncycle):
 def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
     """ Compute and color the Mandelbrot set (GPU version)
     
-    Uses a 1D-grid with xpixels blocks of ypixels threads. For larger images, 
-    one may need to change the grid because of the limitations of the GPU.
+    Uses a 1D-grid with blocks of 32 threads.
     
     Args:
         mat: ndarray(dtype=uint8, ndim=3)
@@ -143,29 +142,31 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
             shared data to write the output image of the set
     """
     # Retrieve x and y from CUDA grid coordinates
-    x = cuda.blockIdx.x
-    y = cuda.threadIdx.x
+    index = cuda.grid(1)
+    x, y = index % mat.shape[1], index // mat.shape[1]
     ncol = colortable.shape[0] - 1
     
-    # Mapping pixel to C
-    creal = xmin + x / mat.shape[1] * (xmax - xmin)
-    cim = ymin + y / mat.shape[0] * (ymax - ymin)
+    # Check if x and y are not out of mat bounds
+    if (y < mat.shape[0]) and (x < mat.shape[1]):
+        # Mapping pixel to C
+        creal = xmin + x / mat.shape[1] * (xmax - xmin)
+        cim = ymin + y / mat.shape[0] * (ymax - ymin)
+        
+        # Initialization of c
+        c = complex(creal, cim)
     
-    # Initialization of c
-    c = complex(creal, cim)
-
-    # Get smooth iteration count
-    niter = smooth_iter(c, maxiter)
-    # Power post-transform
-    # We use sqrt since pow can yield unexpected values with numba
-    niter = math.sqrt(niter)
-    
-    # If escaped: color the set
-    if niter != 0:
-        col_i = round(niter % ncycle / ncycle * ncol)
-        mat[y,x,0] = colortable[col_i,0]
-        mat[y,x,1] = colortable[col_i,1]
-        mat[y,x,2] = colortable[col_i,2]
+        # Get smooth iteration count
+        niter = smooth_iter(c, maxiter)
+        # Power post-transform
+        # We use sqrt since pow can yield unexpected values with numba
+        niter = math.sqrt(niter)
+        
+        # If escaped: color the set
+        if niter != 0:
+            col_i = round(niter % ncycle / ncycle * ncol)
+            mat[y,x,0] = colortable[col_i,0]
+            mat[y,x,1] = colortable[col_i,1]
+            mat[y,x,2] = colortable[col_i,2]
 
 
 class Mandelbrot():
@@ -202,11 +203,6 @@ class Mandelbrot():
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
-        # GPU: Number of threads per block is set to ypixels, but usually the 
-        # maximum number of threads per block on a GPU is 1024. This require
-        # to change the gridsize used.
-        if (self.ypixels >= 1024) and self.gpu:
-            raise AttributeError('image size is too high for GPU grid size')
             
         # Initialization of colortable
         if colortable is None:
@@ -230,10 +226,14 @@ class Mandelbrot():
         if(self.gpu):
             # Pixel mapping is done in compute_self_gpu
             self.set = np.zeros((yp, xp, 3), np.uint8)
-            # Compute set with GPU
-            compute_set_gpu[xp,
-                            yp](self.set, *self.coord, self.maxiter,
-                                self.colortable, ncycle)
+            # Compute set with GPU: 
+            # 1D grid, with n blocks of 32 threads 
+            npixels = xp * yp
+            nthread = 32
+            nblock = math.ceil(npixels / nthread)
+            compute_set_gpu[nblock,
+                            nthread](self.set, *self.coord, self.maxiter,
+                                    self.colortable, ncycle)
         else:
             # Mapping pixels to C
             creal = np.linspace(self.coord[0], self.coord[1], xp)
