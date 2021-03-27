@@ -223,7 +223,7 @@ class Mandelbrot():
         # Apply ower post-transform to ncycle
         ncycle = math.pow(self.ncycle, .5)
         
-        # Oversampling by os
+        # Oversampling: rescaling by os
         xp = self.xpixels*self.os
         yp = self.ypixels*self.os
         
@@ -241,11 +241,12 @@ class Mandelbrot():
             # Compute set with CPU
             self.set = compute_set(creal, cim, self.maxiter,
                                    self.colortable, ncycle)
-        # Reshaping to (ypixels, xpixels, 3)
-        self.set = (self.set
-                    .reshape((self.ypixels, self.os,
-                              self.xpixels, self.os, 3))
-                    .mean(3).mean(1).astype(np.uint8))
+        # Oversampling: reshaping to (ypixels, xpixels, 3)
+        if self.os > 1:
+            self.set = (self.set
+                        .reshape((self.ypixels, self.os,
+                                  self.xpixels, self.os, 3))
+                        .mean(3).mean(1).astype(np.uint8))
 
     def draw_pil(self, filename=None):
         """Draw or save, using PIL"""
@@ -333,7 +334,7 @@ class Mandelbrot_explorer():
         # Add a slider of number of iterations
         self.ax_sld = plt.axes([0.3, 0.005, 0.4, 0.02])
         self.sld_maxiter = Slider(self.ax_sld, 'Iterations', 0,
-                                 max(2000, self.mand.maxiter),
+                                 max(5000, self.mand.maxiter),
                              valinit=mand.maxiter, valstep=50)
         # Add a button to randomly change the color table
         self.ax_button = plt.axes([0.45, 0.03, 0.1, 0.035])
