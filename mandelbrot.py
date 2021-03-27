@@ -293,6 +293,8 @@ class Mandelbrot():
             return np.exp(-np.power(x, 2.) / (2 * np.power(sig, 2.)))
         s = 1 - gaussian(n_frames, 1/2)*.4
         
+        # Update in case it was not up to date (e.g. parameters changed)
+        self.update_set()
         images = [self.set]
         # Making list of images
         for i in range(1, n_frames):
@@ -317,6 +319,8 @@ class Mandelbrot():
 class Mandelbrot_explorer():
     def __init__(self, mand, dpi=72):
         self.mand = mand
+        # Update in case it was not up to date (e.g. parameters changed)
+        self.mand.update_set()
         # Plot the set
         self.fig, self.ax = plt.subplots(figsize=(mand.xpixels/dpi,
                                                   mand.ypixels/dpi))
@@ -333,7 +337,6 @@ class Mandelbrot_explorer():
         self.ax_button = plt.axes([0.45, 0.03, 0.1, 0.035])
         self.button = Button(self.ax_button, 'Random colors')
         plt.sca(self.ax)
-        plt.show()
         
         # Note that it is mandatory to keep track of those objects so they are
         # not deleted by Matplotlib, and callbacks can be used
@@ -344,6 +347,7 @@ class Mandelbrot_explorer():
         self.cid1 = self.fig.canvas.mpl_connect('scroll_event', self.onclick)
         self.cid2 = self.fig.canvas.mpl_connect('button_press_event',
                                                 self.onclick)
+        plt.show()
         
     def onclick(self, event):
         # This function is called by any click/scroll, button click or slider
