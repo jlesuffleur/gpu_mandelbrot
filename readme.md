@@ -8,6 +8,7 @@
 - Save still and animated images
 - Smooth coloring
 - Customizable color palette
+- 100% Python code 🐍
 
 ## Quick start
 
@@ -44,7 +45,7 @@ mand.animate(x_real, y_imag, 'mandelbrot.gif')
 
 ## Runtime 🚀
 
-Computing a sequence of `100` frames of pictures of size `1800*1000` pixels, with `2000` iterations takes approx **1 second** on a Tesla K80 GPU.
+Computing a sequence of `100` frames of pictures of size `1800*1000` pixels, with `2000` iterations takes approximately **1 second** on a Tesla K80 GPU.
 
 
 ## Requirements
