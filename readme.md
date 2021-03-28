@@ -37,7 +37,7 @@ mand.draw('mandelbrot.png')
 
 ```python
 # Let's change the color, and make a smaller image to avoid overloading the browser
-mand = Mandelbrot(xpixels = 500, rgb_thetas = np.array([.2, .4 , 1.1]))
+mand = Mandelbrot(xpixels = 500)
 # Point to zoom at
 x_real = -1.7576871663606164
 x_imag = 0.017457512970355783
