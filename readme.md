@@ -22,7 +22,7 @@ mand = Mandelbrot(gpu = True) # set gpu to False if not available
 ### Explore the set
 
 ```python
-# Explore the set using interactive Matplotlib window
+# Explore the set using interactive Matplotlib GUI
 mand.explore()
 ```
 ### Draw an image
@@ -40,14 +40,14 @@ mand.draw('mandelbrot.png')
 mand = Mandelbrot(xpixels = 500, rgb_thetas = np.array([.2, .4 , 1.1]))
 # Point to zoom at
 x_real = -1.7576871663606164
-y_imag = 0.017457512970355783
-mand.animate(x_real, y_imag, 'mandelbrot.gif')
+x_imag = 0.017457512970355783
+mand.animate(x_real, x_imag, 'mandelbrot.gif')
 ```
 ![](img/mandelbrot.gif)
 
 ### Run from command line
 
-Use the following command from terminal to launch an exploration GUI with default parameters:
+Use the following command from terminal to launch a GUI with default parameters:
 
 ```shell
 python ./mandelbrot.py
@@ -57,9 +57,8 @@ python ./mandelbrot.py
 
 Computing a sequence of `100` frames of pictures of size `1800*1000` pixels, with `2000` iterations takes approximately **1 second** on a Tesla K80 GPU.
 
-
 ## Requirements
 - NumPy
 - Matplotlib
 - Numba
-- (optional) A CUDA compatible GPU & CUDA Toolkit for much faster rendering
+- (optional, for much faster rendering) A CUDA compatible GPU & CUDA Toolkit
