@@ -6,9 +6,11 @@
   - Use mousewheel or left/right click to zoom in/out
   - Use button and slider to change the color palette and the number of iterations
 - Save still and animated images
-- Smooth coloring
+- Smooth coloring, anti-aliasing by oversampling
 - Customizable color palette
-- 100% Python code 🐍
+- **Precision:** zoom down to float64 precision (approx. 16 significants digits)
+
+All that in a 100% Python code 🐍
 
 ## Quick start
 
@@ -52,4 +54,4 @@ Computing a sequence of `100` frames of pictures of size `1800*1000` pixels, wit
 - NumPy
 - Matplotlib
 - Numba
-- (optional) A CUDA compatible GPU for much faster rendering
+- (optional) A CUDA compatible GPU & CUDA Toolkit for much faster rendering
