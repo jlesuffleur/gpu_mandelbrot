@@ -45,6 +45,14 @@ mand.animate(x_real, y_imag, 'mandelbrot.gif')
 ```
 ![](img/mandelbrot.gif)
 
+### Run from command line
+
+Use the following command from terminal to launch an exploration GUI with default parameters:
+
+```shell
+python ./mandelbrot.py
+```
+
 ## Runtime 🚀
 
 Computing a sequence of `100` frames of pictures of size `1800*1000` pixels, with `2000` iterations takes approximately **1 second** on a Tesla K80 GPU.
