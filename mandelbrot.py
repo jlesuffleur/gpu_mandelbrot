@@ -159,7 +159,7 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
         # Get smooth iteration count
         niter = smooth_iter(c, maxiter)
         # If escaped: color the set
-        if niter != 0:
+        if niter > 0:
             # Power post-transform
             # We use sqrt since pow can yield unexpected values with numba
             niter = math.sqrt(niter)
