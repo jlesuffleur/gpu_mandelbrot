@@ -70,9 +70,10 @@ def smooth_iter(c, maxiter):
         # If escape: save (smooth) iteration count
         # Equivalent to abs(z) > esc_radius
         if z.real*z.real + z.imag*z.imag > esc_radius_2:
-            # Smooth iteration count
-            return n + 1 - math.log(math.log(abs(z)))/math.log(2)
-    # Otherwise: leave iteration count to 0
+            # Smooth iteration count: equals n when abs(z) = esc_radius
+            log_ratio = 2*math.log(abs(z))/math.log(esc_radius_2)
+            return n - math.log(log_ratio)/math.log(2)
+    # Otherwise: set iteration count to 0
     return 0
 
 @jit
@@ -109,14 +110,15 @@ def compute_set(creal, cim, maxiter, colortable, ncycle):
             c = complex(creal[x], cim[y])
             # Get smooth iteration count
             niter = smooth_iter(c, maxiter)
-            # Power post-transform
-            niter = math.pow(niter, .5)
             # If escaped: color the set
-            if niter != 0:
+            if niter > 0:
+                # Power post-transform
+                niter = math.sqrt(niter)
+                # Cycle through colortable
                 col_i = round(niter % ncycle / ncycle * ncol)
-                mat[y,x,0] = colortable[col_i,0]
-                mat[y,x,1] = colortable[col_i,1]
-                mat[y,x,2] = colortable[col_i,2]
+                # Color each channel
+                for i in range(3):
+                    mat[y,x,i] = colortable[col_i,i]
     return mat
 
 @cuda.jit
@@ -151,23 +153,20 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
         # Mapping pixel to C
         creal = xmin + x / mat.shape[1] * (xmax - xmin)
         cim = ymin + y / mat.shape[0] * (ymax - ymin)
-        
         # Initialization of c
         c = complex(creal, cim)
-    
         # Get smooth iteration count
         niter = smooth_iter(c, maxiter)
-        # Power post-transform
-        # We use sqrt since pow can yield unexpected values with numba
-        niter = math.sqrt(niter)
-        
         # If escaped: color the set
         if niter != 0:
+            # Power post-transform
+            # We use sqrt since pow can yield unexpected values with numba
+            niter = math.sqrt(niter)
+            # Cycle through colortable
             col_i = round(niter % ncycle / ncycle * ncol)
-            mat[y,x,0] = colortable[col_i,0]
-            mat[y,x,1] = colortable[col_i,1]
-            mat[y,x,2] = colortable[col_i,2]
-
+            # Color each channel
+            for i in range(3):
+                mat[y,x,i] = colortable[col_i,i]
 
 class Mandelbrot():
     """Mandelbrot set object"""
