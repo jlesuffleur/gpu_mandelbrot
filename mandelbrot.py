@@ -171,7 +171,7 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
 class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1000, maxiter=500,
-                 coord=(-2.6, 1.85, -1.25, 1.25), gpu=False, ncycle=32,
+                 coord=(-2.6, 1.845, -1.25, 1.25), gpu=False, ncycle=32,
                  colortable=None, oversampling_size=1):
         """Mandelbrot set object
     
@@ -181,7 +181,8 @@ class Mandelbrot():
             maxiter: int
                 maximal number of iterations
             coord: (float, float, float, float)
-                coordinates of the frame in the complex space
+                coordinates of the frame in the complex space. Default to the
+                main view of the Set, with a 16:9 ratio.
             gpu: boolean
                 use CUDA on GPU to compute the set
             ncycle: float
@@ -202,7 +203,6 @@ class Mandelbrot():
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
-            
         # Initialization of colortable
         if colortable is None:
             colortable = sin_colortable()
@@ -216,8 +216,7 @@ class Mandelbrot():
         Compute and color the Mandelbrot set, using CPU or GPU
         """
         # Apply ower post-transform to ncycle
-        ncycle = math.pow(self.ncycle, .5)
-        
+        ncycle = math.sqrt(self.ncycle)
         # Oversampling: rescaling by os
         xp = self.xpixels*self.os
         yp = self.ypixels*self.os
@@ -262,12 +261,14 @@ class Mandelbrot():
         # Remove axis and margins
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis('off')
-        plt.show()
         # Write figure to file
         if filename is not None:
             plt.savefig(filename, dpi=dpi)
+        else:
+            plt.show()
         
     def zoom_at(self, x, y, s):
+        """Zoom at (x,y): center at (x,y) and scale by s"""
         xrange = (self.coord[1] - self.coord[0])/2
         yrange = (self.coord[3] - self.coord[2])/2
         self.coord = [x - xrange * s,
@@ -276,7 +277,7 @@ class Mandelbrot():
                       y + yrange * s]
         
     def szoom_at(self, x, y, s):
-        """Soft zoom (continuous)"""
+        """Soft zoom (continuous) at (x,y): partial centering"""
         xrange = (self.coord[1] - self.coord[0])/2
         yrange = (self.coord[3] - self.coord[2])/2
         x = x * (1-s**2) + (self.coord[1] + self.coord[0])/2 * s**2
@@ -287,7 +288,22 @@ class Mandelbrot():
                       y + yrange * s]      
         
     def animate(self, x, y, file_out, n_frames=100, loop=True):
-        """Note that the Mandelbrot object is modified by this function"""
+        """Animated zoom to GIF file
+    
+        Note that the Mandelbrot object is modified by this function
+        
+        Args:
+            x: float
+                real part of point to zoom at
+            y: float
+                imaginary part of point to zoom at
+            file_out: str
+                filename to save the GIF output
+            n_frames: int
+                number of frames in the output file
+            loop: boolean
+                loop back to original coordinates
+        """   
         # Zoom scale: gaussian shape, from 0% (s=1) to 40% (s=0.6)
         # => zoom scale (i.e. speed) is increasing, then decreasing
         def gaussian(n, sig = 1):
@@ -313,12 +329,14 @@ class Mandelbrot():
         imageio.mimsave(file_out, images)   
     
     def explore(self, dpi=72):
+        """Run the Mandelbrot explorer: a Matplotlib GUI"""
         # It is important to keep track of the object in a variable, so the
         # slider and button are responsive
         self.explorer = Mandelbrot_explorer(self, dpi)
 
 
 class Mandelbrot_explorer():
+    """A Matplotlib GUI to explore the Mandelbrot set"""
     def __init__(self, mand, dpi=72):
         self.mand = mand
         # Update in case it was not up to date (e.g. parameters changed)
@@ -352,6 +370,7 @@ class Mandelbrot_explorer():
         plt.show()
         
     def onclick(self, event):
+        """Event interactivity function"""
         # This function is called by any click/scroll, button click or slider
         # value change
         
