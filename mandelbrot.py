@@ -171,7 +171,7 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
 
 class Mandelbrot():
     """Mandelbrot set object"""
-    def __init__(self, xpixels=1000, maxiter=500,
+    def __init__(self, xpixels=1280, maxiter=500,
                  coord=(-2.6, 1.845, -1.25, 1.25), gpu=False, ncycle=32,
                  colortable=None, oversampling_size=1):
         """Mandelbrot set object
@@ -249,7 +249,8 @@ class Mandelbrot():
 
     def draw_pil(self, filename=None):
         """Draw or save, using PIL"""
-        img = Image.fromarray(self.set, 'RGB')
+        # Reverse x-axis (equivalent to matplotlib's origin='lower')
+        img = Image.fromarray(self.set[::-1,:,:], 'RGB')
         if filename is not None:
             img.save(filename) # fast (save in jpg) (compare reading as well)
         else:
