@@ -22,7 +22,7 @@ import imageio
 def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
     """ Sinusoidal color table
     
-    Cyclic color table made with a sinus function for each color channel
+    Cyclic and smooth color table made with a sinus function for each color channel
     
     Args:
         rgb_thetas: [float, float, float]
