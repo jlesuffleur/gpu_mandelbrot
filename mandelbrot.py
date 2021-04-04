@@ -152,8 +152,8 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
     # Check if x and y are not out of mat bounds
     if (y < mat.shape[0]) and (x < mat.shape[1]):
         # Mapping pixel to C
-        creal = xmin + x / mat.shape[1] * (xmax - xmin)
-        cim = ymin + y / mat.shape[0] * (ymax - ymin)
+        creal = xmin + x / (mat.shape[1] - 1) * (xmax - xmin)
+        cim = ymin + y / (mat.shape[0] - 1) * (ymax - ymin)
         # Initialization of c
         c = complex(creal, cim)
         # Get smooth iteration count
