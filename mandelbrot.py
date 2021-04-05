@@ -48,7 +48,7 @@ def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
     return colormap(np.linspace(0, 1, ncol), rgb_thetas)
 
 @jit
-def smooth_iter(c, maxiter):
+def smooth_iter(c, maxiter, s, sig):
     """ Smooth number of iteration in the Mandelbrot set for given c
     
     Args:
@@ -61,24 +61,92 @@ def smooth_iter(c, maxiter):
         float: smooth iteration count at escape, 0 if maxiter is reached
     """
     # Escape radius squared: 2**2 is enough, but using a higher radius yields
-    # better estimate of the smooth iteration count
-    esc_radius_2 = 8**2
+    # better estimate of the smooth iteration count and the strides
+    esc_radius_2 = 10**10
     z = complex(0, 0)
+    
+    # Stride average coloring if s and s are given
+    sac = (s > 0) and (sig > 0)
+    
+    a =  0
     
     # Mandelbrot iteration
     for n in range(maxiter):
+        
         z = z*z + c
+        
+        if sac:
+            # Stripe Average Coloring
+            # See: Jussi Harkonen On Smooth Fractal Coloring Techniques
+            # cos instead of sin for symmetry
+            # np.angle inavailable in CUDA
+            # np.angle(z) = math.atan2(z.imag, z.real)
+            t_z = (math.cos(s*math.atan2(z.imag, z.real)) + 1) / 2
+            
         # If escape: save (smooth) iteration count
         # Equivalent to abs(z) > esc_radius
         if z.real*z.real + z.imag*z.imag > esc_radius_2:
+            
             # Smooth iteration count: equals n when abs(z) = esc_radius
             log_ratio = 2*math.log(abs(z))/math.log(esc_radius_2)
-            return n - math.log(log_ratio)/math.log(2)
+            smooth_i = 1 - math.log(log_ratio)/math.log(2)
+
+            if sac:
+                # Stride average coloring
+                # Smoothing + linear interpolation
+                a = a * (1 + smooth_i * (sig-1)) + t_z * smooth_i * (1 - sig)
+                # Same as 2 following lines:
+                #a2 = a * sig + t_z * (1-sig)
+                #a = a * (1 - smooth_i) + a2 * smooth_i            
+                # Init correction
+                # Init weight is now: sig**n * (1 + smooth_i * (sig-1))
+                # thus, a's weight is 1 - init_weight. We rescale
+                a = a / (1 - sig**n * (1 + smooth_i * (sig-1))) 
+
+            
+            # real niter: n+1
+            # real smoothiter: n+1+smooth_i (smooth_i > 0)
+            # a between 0 et 1
+            return (n+1+smooth_i, a)
+        
+        if sac:
+            a = a * sig + t_z * (1-sig)
+            
     # Otherwise: set iteration count to 0
-    return 0
+    return (0,0)
+
 
 @jit
-def compute_set(creal, cim, maxiter, colortable, ncycle):
+def color_pixel(matxy, niter, a, colortable, ncycle, sac):
+    """Color inplace"""
+    ncol = colortable.shape[0] - 1
+    # Power post-transform
+    # We use sqrt since pow can yield unexpected values with numba
+    niter = math.sqrt(niter)
+    # Cycle through colortable
+    col_i = round(niter % ncycle / ncycle * ncol)
+    # Color each channel
+    for i in range(3):
+        matxy[i] = colortable[col_i,i]
+    
+    if sac:
+        # Only orbit:
+        #a=round(a*255)
+        #for i in range(3):
+        #    matxy[i] = a
+        # Multiply: darken image
+        #for i in range(3):
+        #    matxy[i] = round(matxy[i] * a)
+        # "Overlay":
+        if (a*2) < 1:
+            for i in range(3):
+                matxy[i] = round(2 * matxy[i] * a)
+        else:
+            for i in range(3):
+                matxy[i] = round(255 - 2 * (255 - matxy[i]) * (1 - a))
+
+@jit
+def compute_set(creal, cim, maxiter, colortable, ncycle, s, sig):
     """ Compute and color the Mandelbrot set (CPU version)
     
     Args:
@@ -98,32 +166,28 @@ def compute_set(creal, cim, maxiter, colortable, ncycle):
     """
     xpixels = len(creal)
     ypixels = len(cim)
-    ncol = colortable.shape[0] - 1
     
+    # Stride average coloring if s and s are given
+    sac = (s > 0) and (sig > 0)
+
     # Output initialization
     mat = np.zeros((ypixels, xpixels, 3), np.uint8)
 
     # Looping through pixels
     for x in range(xpixels):
         for y in range(ypixels):
-            
             # Initialization of c
             c = complex(creal[x], cim[y])
             # Get smooth iteration count
-            niter = smooth_iter(c, maxiter)
+            niter, a = smooth_iter(c, maxiter, s, sig)
             # If escaped: color the set
             if niter > 0:
-                # Power post-transform
-                niter = math.sqrt(niter)
-                # Cycle through colortable
-                col_i = round(niter % ncycle / ncycle * ncol)
-                # Color each channel
-                for i in range(3):
-                    mat[y,x,i] = colortable[col_i,i]
+                color_pixel(mat[y,x,], niter, a, colortable, ncycle, sac)
     return mat
 
 @cuda.jit
-def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
+def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
+                    s, sig):
     """ Compute and color the Mandelbrot set (GPU version)
     
     Uses a 1D-grid with blocks of 32 threads.
@@ -147,7 +211,10 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
     # Retrieve x and y from CUDA grid coordinates
     index = cuda.grid(1)
     x, y = index % mat.shape[1], index // mat.shape[1]
-    ncol = colortable.shape[0] - 1
+    #ncol = colortable.shape[0] - 1
+    
+    # Stride average coloring if s and s are given
+    sac = (s > 0) and (sig > 0)
     
     # Check if x and y are not out of mat bounds
     if (y < mat.shape[0]) and (x < mat.shape[1]):
@@ -157,23 +224,16 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle):
         # Initialization of c
         c = complex(creal, cim)
         # Get smooth iteration count
-        niter = smooth_iter(c, maxiter)
+        niter, a = smooth_iter(c, maxiter, s, sig)
         # If escaped: color the set
         if niter > 0:
-            # Power post-transform
-            # We use sqrt since pow can yield unexpected values with numba
-            niter = math.sqrt(niter)
-            # Cycle through colortable
-            col_i = round(niter % ncycle / ncycle * ncol)
-            # Color each channel
-            for i in range(3):
-                mat[y,x,i] = colortable[col_i,i]
+            color_pixel(mat[y,x,], niter, a, colortable, ncycle, sac)
 
 class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1280, maxiter=500,
                  coord=(-2.6, 1.845, -1.25, 1.25), gpu=False, ncycle=32,
-                 colortable=None, oversampling_size=1):
+                 rgb_thetas=[.15, .3, .45], oversampling_size=1, s=3, sig=.85):
         """Mandelbrot set object
     
         Args:
@@ -201,13 +261,14 @@ class Mandelbrot():
         self.gpu = gpu
         self.ncycle = ncycle
         self.os = oversampling_size
+        self.rgb_thetas = rgb_thetas
+        self.s = s
+        self.sig = sig
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
         # Initialization of colortable
-        if colortable is None:
-            colortable = sin_colortable()
-        self.colortable = colortable
+        self.colortable = sin_colortable(self.rgb_thetas)
         # Compute the set
         self.update_set()
 
@@ -232,30 +293,30 @@ class Mandelbrot():
             nblock = math.ceil(npixels / nthread)
             compute_set_gpu[nblock,
                             nthread](self.set, *self.coord, self.maxiter,
-                                    self.colortable, ncycle)
+                                    self.colortable, ncycle, self.s, self.sig)
         else:
             # Mapping pixels to C
             creal = np.linspace(self.coord[0], self.coord[1], xp)
             cim = np.linspace(self.coord[2], self.coord[3], yp)
             # Compute set with CPU
             self.set = compute_set(creal, cim, self.maxiter,
-                                   self.colortable, ncycle)
+                                   self.colortable, ncycle, self.s, self.sig)
+
         # Oversampling: reshaping to (ypixels, xpixels, 3)
         if self.os > 1:
             self.set = (self.set
                         .reshape((self.ypixels, self.os,
                                   self.xpixels, self.os, 3))
                         .mean(3).mean(1).astype(np.uint8))
-
-    def draw_pil(self, filename=None):
-        """Draw or save, using PIL"""
+    
+    def draw_pil(self, filename = None):
         # Reverse x-axis (equivalent to matplotlib's origin='lower')
         img = Image.fromarray(self.set[::-1,:,:], 'RGB')
         if filename is not None:
             img.save(filename) # fast (save in jpg) (compare reading as well)
         else:
             img.show() # slow
-        
+            
     def draw(self, filename=None, dpi=72):
         """Draw or save, using Matplotlib"""
         plt.subplots(figsize=(self.xpixels/dpi, self.ypixels/dpi))
@@ -305,7 +366,7 @@ class Mandelbrot():
                 number of frames in the output file
             loop: boolean
                 loop back to original coordinates
-        """   
+        """        
         # Zoom scale: gaussian shape, from 0% (s=1) to 40% (s=0.6)
         # => zoom scale (i.e. speed) is increasing, then decreasing
         def gaussian(n, sig = 1):
