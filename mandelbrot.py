@@ -48,7 +48,7 @@ def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
     return colormap(np.linspace(0, 1, ncol), rgb_thetas)
 
 @jit
-def smooth_iter(c, maxiter, s, sig):
+def smooth_iter(c, maxiter, stripe_s, stripe_sig):
     """ Smooth number of iteration in the Mandelbrot set for given c
     
     Args:
@@ -61,59 +61,72 @@ def smooth_iter(c, maxiter, s, sig):
         float: smooth iteration count at escape, 0 if maxiter is reached
     """
     # Escape radius squared: 2**2 is enough, but using a higher radius yields
-    # better estimate of the smooth iteration count and the strides
+    # better estimate of the smooth iteration count and the stripes
     esc_radius_2 = 10**10
     z = complex(0, 0)
     
-    # Stride average coloring if s and s are given
-    sac = (s > 0) and (sig > 0)
-    
-    a =  0
-    
+    # Stripe average coloring if parameters are given
+    stripe = (stripe_s > 0) and (stripe_sig > 0)
+    # z derivative
+    dz = 1+0j
+    stripe_a =  0
+            
     # Mandelbrot iteration
     for n in range(maxiter):
-        
+        dz = dz*2*z + 1
         z = z*z + c
-        
-        if sac:
+        if stripe:
             # Stripe Average Coloring
             # See: Jussi Harkonen On Smooth Fractal Coloring Techniques
             # cos instead of sin for symmetry
             # np.angle inavailable in CUDA
             # np.angle(z) = math.atan2(z.imag, z.real)
-            t_z = (math.cos(s*math.atan2(z.imag, z.real)) + 1) / 2
-            
+            stripe_t = (math.sin(stripe_s*math.atan2(z.imag, z.real)) + 1) / 2
+        
         # If escape: save (smooth) iteration count
         # Equivalent to abs(z) > esc_radius
         if z.real*z.real + z.imag*z.imag > esc_radius_2:
             
+            modz = abs(z)
+            
             # Smooth iteration count: equals n when abs(z) = esc_radius
-            log_ratio = 2*math.log(abs(z))/math.log(esc_radius_2)
+            log_ratio = 2*math.log(modz)/math.log(esc_radius_2)
             smooth_i = 1 - math.log(log_ratio)/math.log(2)
 
-            if sac:
-                # Stride average coloring
+            if stripe:
+                # Stripe average coloring
                 # Smoothing + linear interpolation
-                a = a * (1 + smooth_i * (sig-1)) + t_z * smooth_i * (1 - sig)
+                stripe_a = (stripe_a * (1 + smooth_i * (stripe_sig-1)) +
+                            stripe_t * smooth_i * (1 - stripe_sig))
                 # Same as 2 following lines:
-                #a2 = a * sig + t_z * (1-sig)
+                #a2 = a * stripe_sig + stripe_t * (1-stripe_sig)
                 #a = a * (1 - smooth_i) + a2 * smooth_i            
-                # Init correction
-                # Init weight is now: sig**n * (1 + smooth_i * (sig-1))
+                # Init correction, init weight is now: 
+                # stripe_sig**n * (1 + smooth_i * (stripe_sig-1))
                 # thus, a's weight is 1 - init_weight. We rescale
-                a = a / (1 - sig**n * (1 + smooth_i * (sig-1))) 
+                stripe_a = stripe_a / (1 - stripe_sig**n *
+                                       (1 + smooth_i * (stripe_sig-1))) 
 
-            
+            # Normal vector for lighting
+            u = z/dz
+            u = u/abs(u)
+            normal = u # 3D vector (u.real, u.imag. 1)
+
+            # Milton's distance estimator
+            dem = modz * math.log(modz) / abs(dz) / 2
+
             # real niter: n+1
-            # real smoothiter: n+1+smooth_i (smooth_i > 0)
-            # a between 0 et 1
-            return (n+1+smooth_i, a)
+            # real smoothiter: n+smooth_i (1 > smooth_i > 0) 
+            # so smoothiter <= niter, in particular: smoothiter <= maxiter 
+            # stripe_a: between 0 et 1
+            # dem: distance to set boundary
+            return (n+smooth_i, stripe_a, dem, normal)
         
-        if sac:
-            a = a * sig + t_z * (1-sig)
+        if stripe:
+            stripe_a = stripe_a * stripe_sig + stripe_t * (1-stripe_sig)
             
     # Otherwise: set iteration count to 0
-    return (0,0)
+    return (0,0,0,0)
 
 
 @jit
