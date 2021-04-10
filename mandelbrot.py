@@ -276,7 +276,8 @@ class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1280, maxiter=500,
                  coord=(-2.6, 1.845, -1.25, 1.25), gpu=False, ncycle=32,
-                 rgb_thetas=[.15, .3, .45], oversampling_size=1, s=3, sig=.85):
+                 rgb_thetas=[.15, .9, 0], oversampling=1, stripe_s=5,
+                 stripe_sig=.9, light = [math.pi/2, 1., .3]):
         """Mandelbrot set object
     
         Args:
@@ -293,20 +294,22 @@ class Mandelbrot():
                 number of iteration before cycling the colortable
             colortable: ndarray(dtype=uint8, ndim=2)
                 color table used to color the set (preferably cyclic)
-            oversampling_size: int
+            oversampling: int
                 for each pixel, a [n, n] grid is computed where n is the
                 oversampling_size. Then, the average color of the n*n pixels
                 is taken. Set to 1 for no oversampling.
         """
+        
         self.xpixels = xpixels
         self.maxiter = maxiter
         self.coord = coord
         self.gpu = gpu
         self.ncycle = ncycle
-        self.os = oversampling_size
+        self.os = oversampling
         self.rgb_thetas = rgb_thetas
-        self.s = s
-        self.sig = sig
+        self.stripe_s = stripe_s
+        self.stripe_sig = stripe_sig
+        self.light = np.array(light)
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
@@ -322,13 +325,15 @@ class Mandelbrot():
         """
         # Apply ower post-transform to ncycle
         ncycle = math.sqrt(self.ncycle)
+        diag = math.sqrt((self.coord[1]-self.coord[0])**2 +
+                  (self.coord[3]-self.coord[2])**2)
         # Oversampling: rescaling by os
         xp = self.xpixels*self.os
         yp = self.ypixels*self.os
         
         if(self.gpu):
             # Pixel mapping is done in compute_self_gpu
-            self.set = np.zeros((yp, xp, 3), np.uint8)
+            self.set = np.zeros((yp, xp, 3))
             # Compute set with GPU: 
             # 1D grid, with n blocks of 32 threads 
             npixels = xp * yp
@@ -336,15 +341,18 @@ class Mandelbrot():
             nblock = math.ceil(npixels / nthread)
             compute_set_gpu[nblock,
                             nthread](self.set, *self.coord, self.maxiter,
-                                    self.colortable, ncycle, self.s, self.sig)
+                                    self.colortable, ncycle, self.stripe_s,
+                                    self.stripe_sig, diag, self.light)
         else:
             # Mapping pixels to C
             creal = np.linspace(self.coord[0], self.coord[1], xp)
             cim = np.linspace(self.coord[2], self.coord[3], yp)
             # Compute set with CPU
             self.set = compute_set(creal, cim, self.maxiter,
-                                   self.colortable, ncycle, self.s, self.sig)
-
+                                   self.colortable, ncycle, self.stripe_s,
+                                   self.stripe_sig, diag,
+                                   self.light)
+        self.set = (255*self.set).astype(np.uint8)
         # Oversampling: reshaping to (ypixels, xpixels, 3)
         if self.os > 1:
             self.set = (self.set
@@ -352,7 +360,7 @@ class Mandelbrot():
                                   self.xpixels, self.os, 3))
                         .mean(3).mean(1).astype(np.uint8))
     
-    def draw_pil(self, filename = None):
+    def draw(self, filename = None):
         # Reverse x-axis (equivalent to matplotlib's origin='lower')
         img = Image.fromarray(self.set[::-1,:,:], 'RGB')
         if filename is not None:
@@ -360,7 +368,7 @@ class Mandelbrot():
         else:
             img.show() # slow
             
-    def draw(self, filename=None, dpi=72):
+    def draw_mpl(self, filename=None, dpi=72):
         """Draw or save, using Matplotlib"""
         plt.subplots(figsize=(self.xpixels/dpi, self.ypixels/dpi))
         plt.imshow(self.set, extent=self.coord, origin='lower')
