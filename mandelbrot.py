@@ -128,35 +128,66 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
     # Otherwise: set iteration count to 0
     return (0,0,0,0)
 
-
 @jit
-def color_pixel(matxy, niter, a, colortable, ncycle, sac):
+def color_pixel(matxy, niter, stripe_a, dem, normal, colortable, ncycle,
+                light):
     """Color inplace"""
+
     ncol = colortable.shape[0] - 1
     # Power post-transform
-    # We use sqrt since pow can yield unexpected values with numba
     niter = math.sqrt(niter)
     # Cycle through colortable
     col_i = round(niter % ncycle / ncycle * ncol)
-    # Color each channel
+    # dem: log transform and sigmoid on [0,1] => [0,1]
+    dem = -math.log(dem)/12
+    dem = 1/(1+math.exp(-10*((2*dem-1)/2)))
+    
+    def overlay(x, y, gamma):
+        """x, y  and gamma floats in [0,1]. Returns float in [0,1]"""
+        if (2*y) < 1:
+            out = 2*x*y
+        else:
+            out = 1 - 2 * (1 - x) * (1 - y)
+        return out * gamma + x * (1-gamma)
+    def softlight(x,y):
+        """x and y floats in [0,1]. Returns float in [0,1]"""
+        return (1 - 2*x)*y**2 + 2*x*y
+    
+    # Light vector: angle direction, height, intensity
+    # Lambert normal shading
+    # light vector: [math.cos(light[0]), math.sin(light[0])]
+    # Light brightness value: dot product between light and normal
+    lbright = (normal.real*math.cos(light[0]) +
+               normal.imag*math.sin(light[0]) + light[1])
+    lbright = lbright/(1+light[1])
+    # clip to [0,1]
+    lbright = min(1, max(0, lbright))
+    
+    # pixel brightness        
+    br = (colortable[col_i,0] + colortable[col_i,1] + colortable[col_i,2])/3
+    
     for i in range(3):
         matxy[i] = colortable[col_i,i]
-    
-    if sac:
-        # Only orbit:
-        #a=round(a*255)
-        #for i in range(3):
-        #    matxy[i] = a
-        # Multiply: darken image
-        #for i in range(3):
-        #    matxy[i] = round(matxy[i] * a)
-        # "Overlay":
-        if (a*2) < 1:
-            for i in range(3):
-                matxy[i] = round(2 * matxy[i] * a)
-        else:
-            for i in range(3):
-                matxy[i] = round(255 - 2 * (255 - matxy[i]) * (1 - a))
+        # Stripe average coloring: using 3 blend modes
+        if stripe_a > 0:
+            # Softlight: good mode but lowers the saturation
+            sl = softlight(matxy[i], stripe_a)
+            # Brightness correction: increases too much the saturation,
+            # and has non-continuity when base brightness is close to 0
+            brc = matxy[i] * stripe_a / br
+            # Opacity for low brightness (to hide non-continuity)
+            brc = brc * math.sqrt(br) + (1-math.sqrt(br)) * matxy[i]
+            # Overlay: good, but information loss when base is close to 0
+            # or 1
+            ol = overlay(matxy[i], stripe_a, 1)
+            # Average of three modes
+            matxy[i] = (sl + brc + ol) / 3
+            # Opacity with distance estimator: hide the stripes for the
+            # points closer to the set
+            matxy[i] = matxy[i] * (1-dem) + dem * colortable[col_i,i]
+        # Lambert shading with overlay mode
+        matxy[i] = overlay(matxy[i], lbright, light[2])
+        matxy[i] = min(1, matxy[i])
 
 @jit
 def compute_set(creal, cim, maxiter, colortable, ncycle, s, sig):
