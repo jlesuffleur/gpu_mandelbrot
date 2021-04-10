@@ -55,7 +55,7 @@ python ./mandelbrot.py
 ```
 ## Gallery
 
-Some examples:
+Some examples of HD images, and corresponding code:
 
 ```python
 mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.11, .02, .92], stripe_s = 2,
