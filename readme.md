@@ -30,18 +30,18 @@ mand.explore()
 
 ```python
 # Draw an image and save it to file
-mand.draw('mandelbrot.png')
+mand.draw('mandelbrot.jpg')
 ```
 ![](img/mandelbrot.png)
 
 ### Make a zoom animation
 
 ```python
-# Let's change the color, and make a smaller image to avoid overloading the browser
-mand = Mandelbrot(xpixels = 500)
+# We decrease the image size to avoid overloading git and the readme page
+mand = Mandelbrot(maxiter = 2500, xpixels = 426, gpu = True)
 # Point to zoom at
-x_real = -1.7576871663606164
-x_imag = 0.017457512970355783
+x_real = -1.7492404293151038
+x_imag = -0.0002615793835705974
 mand.animate(x_real, x_imag, 'mandelbrot.gif')
 ```
 ![](img/mandelbrot.gif)
