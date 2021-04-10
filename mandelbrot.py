@@ -277,7 +277,7 @@ class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1280, maxiter=500,
                  coord=[-2.6, 1.845, -1.25, 1.25], gpu=False, ncycle=32,
-                 rgb_thetas=[.0, .15, .25], oversampling=1, stripe_s=3,
+                 rgb_thetas=[.0, .15, .25], oversampling=3, stripe_s=3,
                  stripe_sig=.9, light = [math.pi/2, 1., .3]):
         """Mandelbrot set object
     
