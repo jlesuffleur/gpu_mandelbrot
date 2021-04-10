@@ -190,7 +190,8 @@ def color_pixel(matxy, niter, stripe_a, dem, normal, colortable, ncycle,
         matxy[i] = min(1, matxy[i])
 
 @jit
-def compute_set(creal, cim, maxiter, colortable, ncycle, s, sig):
+def compute_set(creal, cim, maxiter, colortable, ncycle, stripe_s, stripe_sig,
+                diag, light):
     """ Compute and color the Mandelbrot set (CPU version)
     
     Args:
@@ -210,12 +211,9 @@ def compute_set(creal, cim, maxiter, colortable, ncycle, s, sig):
     """
     xpixels = len(creal)
     ypixels = len(cim)
-    
-    # Stride average coloring if s and s are given
-    sac = (s > 0) and (sig > 0)
 
     # Output initialization
-    mat = np.zeros((ypixels, xpixels, 3), np.uint8)
+    mat = np.zeros((ypixels, xpixels, 3))
 
     # Looping through pixels
     for x in range(xpixels):
@@ -223,15 +221,18 @@ def compute_set(creal, cim, maxiter, colortable, ncycle, s, sig):
             # Initialization of c
             c = complex(creal[x], cim[y])
             # Get smooth iteration count
-            niter, a = smooth_iter(c, maxiter, s, sig)
+            niter, stripe_a, dem, normal = smooth_iter(c, maxiter, stripe_s,
+                                                      stripe_sig)
             # If escaped: color the set
             if niter > 0:
-                color_pixel(mat[y,x,], niter, a, colortable, ncycle, sac)
+                # dem normalization by diag
+                color_pixel(mat[y,x,], niter, stripe_a, dem/diag, normal, colortable,
+                            ncycle, light)
     return mat
 
 @cuda.jit
 def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
-                    s, sig):
+                    stripe_s, stripe_sig, diag, light):
     """ Compute and color the Mandelbrot set (GPU version)
     
     Uses a 1D-grid with blocks of 32 threads.
@@ -257,9 +258,6 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
     x, y = index % mat.shape[1], index // mat.shape[1]
     #ncol = colortable.shape[0] - 1
     
-    # Stride average coloring if s and s are given
-    sac = (s > 0) and (sig > 0)
-    
     # Check if x and y are not out of mat bounds
     if (y < mat.shape[0]) and (x < mat.shape[1]):
         # Mapping pixel to C
@@ -268,10 +266,11 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
         # Initialization of c
         c = complex(creal, cim)
         # Get smooth iteration count
-        niter, a = smooth_iter(c, maxiter, s, sig)
+        niter, stripe_a, dem, normal = smooth_iter(c, maxiter, stripe_s, stripe_sig)
         # If escaped: color the set
         if niter > 0:
-            color_pixel(mat[y,x,], niter, a, colortable, ncycle, sac)
+            color_pixel(mat[y,x,], niter, stripe_a, dem/diag, normal,
+                        colortable, ncycle, light)
 
 class Mandelbrot():
     """Mandelbrot set object"""
