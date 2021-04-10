@@ -6,7 +6,8 @@
   - Use mousewheel or left/right click to zoom in/out
   - Use button and slider to change the color palette and the number of iterations
 - Save still and animated images
-- Smooth coloring, anti-aliasing by oversampling
+- Smooth iteration coloring, anti-aliasing by oversampling
+- **Shading:** stripe average and Lambert normal
 - Customizable color palette
 - **Precision:** zoom down to float64 precision (approx. 16 significants digits)
 
