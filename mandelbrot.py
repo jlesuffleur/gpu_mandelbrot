@@ -32,17 +32,17 @@ def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
             number of color in the output table
 
     Returns:
-        ndarray(dtype=uint8, ndim=2): color table
+        ndarray(dtype=float, ndim=2): color table
     """
     def colormap(x, rgb_thetas):
         # x in [0,1]
         # Compute the frequency and phase of each channel
-        y = x*2*math.pi + math.pi
+        y = x*2*math.pi
         y = np.column_stack((y + rgb_thetas[0] * 2 * math.pi,
                              y + rgb_thetas[1] * 2 * math.pi,
                              y + rgb_thetas[2] * 2 * math.pi))
         # Set amplitude to [0,255]
-        val = np.around(255*(0.5 + 0.5*np.cos(y))).astype(np.uint8)
+        val = 0.5 + 0.5*np.sin(y)
         return val
 
     return colormap(np.linspace(0, 1, ncol), rgb_thetas)
