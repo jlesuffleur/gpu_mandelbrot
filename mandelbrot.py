@@ -96,6 +96,7 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
             if stripe:
                 # Stripe average coloring
                 # Smoothing + linear interpolation
+                # spline interpolation does not improve
                 stripe_a = (stripe_a * (1 + smooth_i * (stripe_sig-1)) +
                             stripe_t * smooth_i * (1 - stripe_sig))
                 # Same as 2 following lines:
@@ -127,7 +128,7 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
             
     # Otherwise: set iteration count to 0
     return (0,0,0,0)
-
+            
 @jit
 def color_pixel(matxy, niter, stripe_a, dem, normal, colortable, ncycle,
                 light):
@@ -275,8 +276,8 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
 class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1280, maxiter=500,
-                 coord=(-2.6, 1.845, -1.25, 1.25), gpu=False, ncycle=32,
-                 rgb_thetas=[.15, .9, 0], oversampling=1, stripe_s=5,
+                 coord=[-2.6, 1.845, -1.25, 1.25], gpu=False, ncycle=32,
+                 rgb_thetas=[.0, .15, .25], oversampling=1, stripe_s=3,
                  stripe_sig=.9, light = [math.pi/2, 1., .3]):
         """Mandelbrot set object
     
@@ -471,31 +472,31 @@ class Mandelbrot_explorer():
         self.ax_sldr = plt.axes([0.1, 0.08, 0.2, 0.02])
         self.sld_r = Slider(self.ax_sldr, 'R', 0, 1, mand.rgb_thetas[0],
                             valstep=.001)
-        self.sld_r.on_changed(self.update_rgb)
+        self.sld_r.on_changed(self.update_values)
         self.ax_sldg = plt.axes([0.1, 0.1, 0.2, 0.02])
         self.sld_g = Slider(self.ax_sldg, 'G', 0, 1, mand.rgb_thetas[1],
                             valstep=.001)
-        self.sld_g.on_changed(self.update_rgb)
+        self.sld_g.on_changed(self.update_values)
         self.ax_sldb = plt.axes([0.1, 0.12, 0.2, 0.02])
         self.sld_b = Slider(self.ax_sldb, 'B', 0, 1, mand.rgb_thetas[2],
                             valstep=.001)
-        self.sld_b.on_changed(self.update_rgb)
+        self.sld_b.on_changed(self.update_values)
         
         self.ax_sldn = plt.axes([0.1, 0.14, 0.2, 0.02])
         self.sld_n = Slider(self.ax_sldn, 'ncycle', 0, 200, mand.ncycle, valstep=1)
-        self.sld_n.on_changed(self.update_rgb)
+        self.sld_n.on_changed(self.update_values)
         
         self.ax_sldp = plt.axes([0.1, 0.16, 0.2, 0.02])
         self.sld_p = Slider(self.ax_sldp, 'phase', 0, 1, 0, valstep=0.001)
-        self.sld_p.on_changed(self.update_rgb)
+        self.sld_p.on_changed(self.update_values)
         
         self.ax_slds = plt.axes([0.7, 0.16, 0.2, 0.02])
         self.sld_s = Slider(self.ax_slds, 'stripe_s', 0, 32, mand.stripe_s, valstep=1)
-        self.sld_s.on_changed(self.update_rgb)
+        self.sld_s.on_changed(self.update_values)
         
         self.ax_sldli = plt.axes([0.7, 0.14, 0.2, 0.02])
         self.sld_li = Slider(self.ax_sldli, 'light_i', 0, 1, mand.light[2], valstep=.01)
-        self.sld_li.on_changed(self.update_rgb)
+        self.sld_li.on_changed(self.update_values)
         
         # Add a button to randomly change the color table
         self.ax_button = plt.axes([0.1, 0.03, 0.1, 0.035])
