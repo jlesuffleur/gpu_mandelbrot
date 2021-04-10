@@ -32,7 +32,7 @@ mand.explore()
 # Draw an image and save it to file
 mand.draw('mandelbrot.jpg')
 ```
-![](img/mandelbrot.png)
+![](img/mandelbrot.jpg)
 
 ### Make a zoom animation
 
