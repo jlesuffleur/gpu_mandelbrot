@@ -463,12 +463,42 @@ class Mandelbrot_explorer():
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis('off')
         # Add a slider of number of iterations
-        self.ax_sld = plt.axes([0.3, 0.005, 0.4, 0.02])
+        self.ax_sld = plt.axes([0.1, 0.005, 0.2, 0.02])
         self.sld_maxiter = Slider(self.ax_sld, 'Iterations', 0,
-                                 max(5000, self.mand.maxiter),
-                             valinit=mand.maxiter, valstep=50)
+                                 max(2000, self.mand.maxiter),
+                             valinit=mand.maxiter, valstep=5)
+        
+        self.ax_sldr = plt.axes([0.1, 0.08, 0.2, 0.02])
+        self.sld_r = Slider(self.ax_sldr, 'R', 0, 1, mand.rgb_thetas[0],
+                            valstep=.001)
+        self.sld_r.on_changed(self.update_rgb)
+        self.ax_sldg = plt.axes([0.1, 0.1, 0.2, 0.02])
+        self.sld_g = Slider(self.ax_sldg, 'G', 0, 1, mand.rgb_thetas[1],
+                            valstep=.001)
+        self.sld_g.on_changed(self.update_rgb)
+        self.ax_sldb = plt.axes([0.1, 0.12, 0.2, 0.02])
+        self.sld_b = Slider(self.ax_sldb, 'B', 0, 1, mand.rgb_thetas[2],
+                            valstep=.001)
+        self.sld_b.on_changed(self.update_rgb)
+        
+        self.ax_sldn = plt.axes([0.1, 0.14, 0.2, 0.02])
+        self.sld_n = Slider(self.ax_sldn, 'ncycle', 0, 200, mand.ncycle, valstep=1)
+        self.sld_n.on_changed(self.update_rgb)
+        
+        self.ax_sldp = plt.axes([0.1, 0.16, 0.2, 0.02])
+        self.sld_p = Slider(self.ax_sldp, 'phase', 0, 1, 0, valstep=0.001)
+        self.sld_p.on_changed(self.update_rgb)
+        
+        self.ax_slds = plt.axes([0.7, 0.16, 0.2, 0.02])
+        self.sld_s = Slider(self.ax_slds, 'stripe_s', 0, 32, mand.stripe_s, valstep=1)
+        self.sld_s.on_changed(self.update_rgb)
+        
+        self.ax_sldli = plt.axes([0.7, 0.14, 0.2, 0.02])
+        self.sld_li = Slider(self.ax_sldli, 'light_i', 0, 1, mand.light[2], valstep=.01)
+        self.sld_li.on_changed(self.update_rgb)
+        
         # Add a button to randomly change the color table
-        self.ax_button = plt.axes([0.45, 0.03, 0.1, 0.035])
+        self.ax_button = plt.axes([0.1, 0.03, 0.1, 0.035])
         self.button = Button(self.ax_button, 'Random colors')
         plt.sca(self.ax)
         
@@ -483,13 +513,24 @@ class Mandelbrot_explorer():
                                                 self.onclick)
         plt.show()
         
+    def update_values(self, val):
+        rgb = [x + self.sld_p.val for x in [self.sld_r.val, self.sld_g.val,
+                                            self.sld_b.val]]
+        self.mand.rgb_thetas = rgb
+        self.mand.colortable = sin_colortable(rgb)
+        self.mand.ncycle = self.sld_n.val
+        self.mand.stripe_s = self.sld_s.val
+        self.mand.light[2] = self.sld_li.val
+        self.mand.update_set()
+        self.graph.set_data(self.mand.set)
+        plt.draw()       
+        plt.show()
+        
     def onclick(self, event):
         """Event interactivity function"""
         # This function is called by any click/scroll, button click or slider
         # value change
-        
         update = False
-        
         # If event is an integer: it comes from the Slider
         if(isinstance(event, int)):
             # Slider event: update maxiter
@@ -500,7 +541,9 @@ class Mandelbrot_explorer():
             if event.inaxes == self.ax:
                 # Click or scroll in the main axe: zoom event
                 # Default: zoom in
-                zoom = 1/2
+                zoom = 3/4
+                if event.button == 'up':
+                    zoom = 1/4
                 if event.button in ('down', 3):
                     # If right click or scroll down: zoom out
                     zoom = 1/zoom
