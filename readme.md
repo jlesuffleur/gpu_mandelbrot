@@ -103,7 +103,7 @@ mand.draw('lightning.jpg')
 
 ```python
 mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.60, .57, .45], stripe_s = 12,
-                  light = [0, 1., .1], gpu = True, oversampling = 3,
+                  light = [0, 1., .1],
                   coord = [-1.8605721473418524,
                            -1.860572147340747,
                            -3.1800170324714687e-06,
