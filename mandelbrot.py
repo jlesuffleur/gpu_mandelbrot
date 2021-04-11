@@ -37,11 +37,10 @@ def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
     def colormap(x, rgb_thetas):
         # x in [0,1]
         # Compute the frequency and phase of each channel
-        y = x*2*math.pi
-        y = np.column_stack((y + rgb_thetas[0] * 2 * math.pi,
-                             y + rgb_thetas[1] * 2 * math.pi,
-                             y + rgb_thetas[2] * 2 * math.pi))
-        # Set amplitude to [0,255]
+        y = np.column_stack(((x + rgb_thetas[0]) * 2 * math.pi,
+                             (x + rgb_thetas[1]) * 2 * math.pi,
+                             (x + rgb_thetas[2]) * 2 * math.pi))
+        # Set amplitude to [0,1]
         val = 0.5 + 0.5*np.sin(y)
         return val
 
@@ -56,9 +55,16 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
             point of the complex plane
         maxiter: int 
             maximal number of iterations
+        stripe_s:
+            frequency parameter of stripe average coloring
+        stripe_sig:
+            memory parameter of stripe average coloring
 
-    Returns:
-        float: smooth iteration count at escape, 0 if maxiter is reached
+    Returns: (float, float, float, float)
+        - smooth iteration count at escape, 0 if maxiter is reached
+        - stripe average coloring value
+        - boundary distance estimate
+        - normal, used for shading
     """
     # Escape radius squared: 2**2 is enough, but using a higher radius yields
     # better estimate of the smooth iteration count and the stripes
