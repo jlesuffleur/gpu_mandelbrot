@@ -60,10 +60,10 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
         stripe_sig:
             memory parameter of stripe average coloring
 
-    Returns: (float, float, float, float)
+    Returns: (float, float, float, complex)
         - smooth iteration count at escape, 0 if maxiter is reached
-        - stripe average coloring value
-        - boundary distance estimate
+        - stripe average coloring value, in [0,1]
+        - dem: estimate of distance to the nearest point of the set
         - normal, used for shading
     """
     # Escape radius squared: 2**2 is enough, but using a higher radius yields
@@ -73,13 +73,15 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
     
     # Stripe average coloring if parameters are given
     stripe = (stripe_s > 0) and (stripe_sig > 0)
+    stripe_a =  0
     # z derivative
     dz = 1+0j
-    stripe_a =  0
-            
+    
     # Mandelbrot iteration
     for n in range(maxiter):
+        # derivative update
         dz = dz*2*z + 1
+        # z update
         z = z*z + c
         if stripe:
             # Stripe Average Coloring
@@ -94,7 +96,6 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
         if z.real*z.real + z.imag*z.imag > esc_radius_2:
             
             modz = abs(z)
-            
             # Smooth iteration count: equals n when abs(z) = esc_radius
             log_ratio = 2*math.log(modz)/math.log(esc_radius_2)
             smooth_i = 1 - math.log(log_ratio)/math.log(2)
@@ -122,23 +123,48 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
             # Milton's distance estimator
             dem = modz * math.log(modz) / abs(dz) / 2
 
-            # real niter: n+1
             # real smoothiter: n+smooth_i (1 > smooth_i > 0) 
             # so smoothiter <= niter, in particular: smoothiter <= maxiter 
-            # stripe_a: between 0 et 1
-            # dem: distance to set boundary
             return (n+smooth_i, stripe_a, dem, normal)
         
         if stripe:
             stripe_a = stripe_a * stripe_sig + stripe_t * (1-stripe_sig)
             
-    # Otherwise: set iteration count to 0
+    # Otherwise: set parameters to 0
     return (0,0,0,0)
             
 @jit
 def color_pixel(matxy, niter, stripe_a, dem, normal, colortable, ncycle,
                 light):
-    """Color inplace"""
+    """ Colors given pixel, in-place
+    
+    Coloring is based on the smooth iteration count niter which cycles through
+    the colortable (every ncycle). Then, shading is added using the stripe 
+    average coloring, distance estimate and normal for lambert shading.
+    
+    Args:
+        matxy: ndarray(dtype=float, ndim=1)
+            pixel to color, 3 values in [0,1]
+        niter: float 
+            smooth iteration count
+        stripe_a: float
+            stripe average coloring value
+        dem: float
+            boundary distance estimate
+        normal: complex
+            normal
+        colortable: ndarray(dtype=uint8, ndim=2)
+            cyclic RGB colortable 
+        ncycle: float
+            number of iteration before cycling the colortable
+            
+
+    Returns: (float, float, float, complex)
+        - smooth iteration count at escape, 0 if maxiter is reached
+        - stripe average coloring value, in [0,1]
+        - dem: estimate of distance to the nearest point of the set
+        - normal, used for shading
+    """
 
     ncol = colortable.shape[0] - 1
     # Power post-transform
@@ -160,7 +186,6 @@ def color_pixel(matxy, niter, stripe_a, dem, normal, colortable, ncycle,
         """x and y floats in [0,1]. Returns float in [0,1]"""
         return (1 - 2*x)*y**2 + 2*x*y
     
-    # Light vector: angle direction, height, intensity
     # Lambert normal shading
     # light vector: [math.cos(light[0]), math.sin(light[0])]
     # Light brightness value: dot product between light and normal
@@ -174,7 +199,10 @@ def color_pixel(matxy, niter, stripe_a, dem, normal, colortable, ncycle,
     br = (colortable[col_i,0] + colortable[col_i,1] + colortable[col_i,2])/3
     
     for i in range(3):
+        # Pixel color
         matxy[i] = colortable[col_i,i]
+            
+        ## Shading
         # Stripe average coloring: using 3 blend modes
         if stripe_a > 0:
             # Softlight: good mode but lowers the saturation
@@ -194,6 +222,7 @@ def color_pixel(matxy, niter, stripe_a, dem, normal, colortable, ncycle,
             matxy[i] = matxy[i] * (1-dem) + dem * colortable[col_i,i]
         # Lambert shading with overlay mode
         matxy[i] = overlay(matxy[i], lbright, light[2])
+        # Clipping to 1
         matxy[i] = min(1, matxy[i])
 
 @jit
@@ -212,6 +241,10 @@ def compute_set(creal, cim, maxiter, colortable, ncycle, stripe_s, stripe_sig,
             cyclic RGB colortable 
         ncycle: float
             number of iteration before cycling the colortable
+        stripe_s:
+            frequency parameter of stripe average coloring
+        stripe_sig:
+            memory parameter of stripe average coloring
 
     Returns:
         ndarray(dtype=uint8, ndim=3): image of the Mandelbrot set
@@ -255,6 +288,10 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
             cyclic RGB colortable 
         ncycle: float
             number of iteration before cycling the colortable
+        stripe_s:
+            frequency parameter of stripe average coloring
+        stripe_sig:
+            memory parameter of stripe average coloring
 
     Returns:
         mat: ndarray(dtype=uint8, ndim=3)
@@ -282,7 +319,7 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
 class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1280, maxiter=500,
-                 coord=[-2.6, 1.845, -1.25, 1.25], gpu=False, ncycle=32,
+                 coord=[-2.6, 1.845, -1.25, 1.25], gpu=True, ncycle=32,
                  rgb_thetas=[.0, .15, .25], oversampling=3, stripe_s=3,
                  stripe_sig=.9, light = [math.pi/2, 1., .3]):
         """Mandelbrot set object
@@ -305,8 +342,15 @@ class Mandelbrot():
                 for each pixel, a [n, n] grid is computed where n is the
                 oversampling_size. Then, the average color of the n*n pixels
                 is taken. Set to 1 for no oversampling.
+            stripe_s:
+                frequency parameter of stripe average coloring
+            stripe_sig:
+                memory parameter of stripe average coloring
+            light: [float, float, float]
+                light vector: angle direction (in radians), height,
+                intensity (in [0,1])
+            
         """
-        
         self.xpixels = xpixels
         self.maxiter = maxiter
         self.coord = coord
@@ -368,6 +412,7 @@ class Mandelbrot():
                         .mean(3).mean(1).astype(np.uint8))
     
     def draw(self, filename = None):
+        """Draw or save, using PIL"""
         # Reverse x-axis (equivalent to matplotlib's origin='lower')
         img = Image.fromarray(self.set[::-1,:,:], 'RGB')
         if filename is not None:
