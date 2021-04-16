@@ -38,7 +38,7 @@ mand.draw('mandelbrot.jpg')
 
 ```python
 # We decrease the image size to avoid overloading git and the readme page
-mand = Mandelbrot(maxiter = 2500, xpixels = 426, gpu = True)
+mand = Mandelbrot(maxiter = 2500, xpixels = 426)
 # Point to zoom at
 x_real = -1.7492404293151038
 x_imag = -0.0002615793835705974
