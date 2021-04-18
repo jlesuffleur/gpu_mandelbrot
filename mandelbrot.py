@@ -47,6 +47,39 @@ def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
     return colormap(np.linspace(0, 1, ncol), rgb_thetas)
 
 @jit
+def blinn_phong(normal, light):
+    ## Lambert normal shading (diffuse light)
+    normal = normal / abs(normal)    
+    
+    # theta: light angle; phi: light azimuth
+    # light vector: [cos(theta)cos(phi), sin(theta)cos(phi), sin(phi)]
+    # normal vector: [normal.real, normal.imag, 1]
+    # Diffuse light = dot product(light, normal)
+    ldiff = (normal.real*math.cos(light[0])*math.cos(light[1]) +
+               normal.imag*math.sin(light[0])*math.cos(light[1]) + 
+               1*math.sin(light[1]))
+    # Normalization
+    ldiff = ldiff/(1+1*math.sin(light[1]))
+    
+    ## Specular light: Blinn Phong shading
+    # Phi half: average between phi and pi/2 (viewer azimuth)
+    # Specular light = dot product(phi_half, normal)
+    phi_half = (math.pi/2 + light[1])/2
+    lspec = (normal.real*math.cos(light[0])*math.sin(phi_half) +
+             normal.imag*math.sin(light[0])*math.sin(phi_half) +
+             1*math.cos(phi_half))
+    # Normalization
+    lspec = lspec/(1+1*math.cos(phi_half))
+    #spec_angle = max(0, spec_angle)
+    lspec = lspec ** light[6] # shininess
+    
+    ## Brightness = ambiant + diffuse + specular
+    bright = light[3] + light[4]*ldiff + light[5]*lspec
+    ## Add intensity
+    bright = bright * light[2] + (1-light[2])/2 
+    return(bright)
+
+@jit
 def smooth_iter(c, maxiter, stripe_s, stripe_sig):
     """ Smooth number of iteration in the Mandelbrot set for given c
     
