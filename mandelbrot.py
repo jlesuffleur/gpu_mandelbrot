@@ -387,8 +387,8 @@ class Mandelbrot():
             step_s:
                 step density: frequency parameter of step coloring
             light: [float, float, float]
-                light vector: angle direction (in radians), height,
-                intensity (in [0,1])
+                light vector: angle direction [0-1], angle azimuth [0-1],
+                opacity [0,1], k_ambiant, k_diffuse, k_spectral, shininess
            
         """
         self.xpixels = xpixels
