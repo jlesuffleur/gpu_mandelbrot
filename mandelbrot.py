@@ -210,11 +210,7 @@ def color_pixel(matxy, niter, stripe_a, step_s, dem, normal, colortable,
         else:
             out = 1 - 2 * (1 - x) * (1 - y)
         return out * gamma + x * (1-gamma)
-    def softlight(x,y):
-        """x and y floats in [0,1]. Returns float in [0,1]"""
-        return (1 - 2*x)*y**2 + 2*x*y
     
-
     # brightness with Blinn Phong shading
     bright = blinn_phong(normal, light)
     
