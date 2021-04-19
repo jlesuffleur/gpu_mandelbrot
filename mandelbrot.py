@@ -638,18 +638,16 @@ class Mandelbrot_explorer():
         if event.inaxes == self.ax:
             # Click or scroll in the main axe: zoom event
             # Default: zoom in
-            zoom = 3/4
-            if event.button == 'up':
-                zoom = 1/4
+            zoom = 1/4
             if event.button in ('down', 3):
                 # If right click or scroll down: zoom out
                 zoom = 1/zoom
-            # Zoom and update figure coordinates
+            # Zoom and update
             self.mand.zoom_at(event.xdata, event.ydata, zoom)
-            self.graph.set_extent(self.mand.coord)
-            # Updating the figure
             self.mand.update_set()
+            # Updating the graph
             self.graph.set_data(self.mand.set)
+            self.graph.set_extent(self.mand.coord)
             plt.draw()      
             plt.show()
 
