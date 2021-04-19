@@ -4,14 +4,14 @@
 - **Accelerated on GPU** and CPU using numba CUDA JIT
 - **Interactive exploration** using Matplotlib
   - Use mousewheel or left/right click to zoom in/out
-  - Use button and slider to change the color palette and the number of iterations
-- Save still and animated images
+  - Use sliders to change the rendering parameters
+- Save still and animated images (GIF)
 - Smooth iteration coloring, anti-aliasing by oversampling
-- **Shading:** stripe average and Lambert normal
+- **Shading:** Blinn-Phong & Lambert lighting, stripe average coloring,
+ steps shading
 - Customizable color palette
 - **Precision:** zoom down to float64 precision (approx. 16 significants digits)
-
-All that in a 100% Python code 🐍
+- 100% Python 🐍
 
 ## Quick start
 
@@ -30,18 +30,19 @@ mand.explore()
 
 ```python
 # Draw an image and save it to file
-mand.draw('mandelbrot.jpg')
+mand.draw('mandelbrot.png')
 ```
-![](img/mandelbrot.jpg)
+![](img/mandelbrot.png)
 
 ### Make a zoom animation
 
 ```python
 # We decrease the image size to avoid overloading git and the readme page
-mand = Mandelbrot(maxiter = 2500, xpixels = 426)
+# We also increase the number of iterations, and add stripe coloring
+mand = Mandelbrot(maxiter = 5000, xpixels = 426, stripe_s = 5)
 # Point to zoom at
-x_real = -1.7492404293151038
-x_imag = -0.0002615793835705974
+x_real = -1.749705768080503
+x_imag = -6.13369029080495e-05
 mand.animate(x_real, x_imag, 'mandelbrot.gif')
 ```
 ![](img/mandelbrot.gif)
@@ -59,70 +60,94 @@ Some examples of HD images, and corresponding code:
 
 ```python
 mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.11, .02, .92], stripe_s = 2,
-                  light = [math.pi, 1., .25],
                   coord = [-0.5503295086752807,
                            -0.5503293049351449,
                            -0.6259346555912755,
                            -0.625934541001796])
-mand.draw('crown.jpg')
+mand.draw('crown.png')
 ```
-![](img/crown.jpg)
+![](img/crown.png)
+
+```python
+mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.29, .02, 0.9], ncycle = 8,
+                  step_s = 10,
+                  coord = [-1.9854527029227764,
+                           -1.9854527027615938,
+                           0.00019009159314173224,
+                           0.00019009168379912058])
+mand.draw('pow.png')
+```
+![](img/pow.png)
 
 ```python
 mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.83, .01, .99], stripe_s = 5,
-                  light = [-3*math.pi/4, 1., .25],
                   coord = [-1.749289287806423,
                            -1.7492892878054118,
                            -1.8709586016347623e-06,
                            -1.8709580332005737e-06])
-mand.draw('octogone.jpg')
+mand.draw('octogone.png')
 ```
-![](img/octogone.jpg)
+![](img/octogone.png)
 
 ```python
-mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.87, .83, .77], stripe_s = 0,
-                  light = [-math.pi/2, 1., .15],
+mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.87, .83, .77],
                   coord = [-1.9415524417847085,
                            -1.9415524394561112,
                            0.00013385928801614168,
                            0.00013386059768851223])
-mand.draw('julia.jpg')
+mand.draw('julia.png')
 ```
-![](img/julia.jpg)
+![](img/julia.png)
 
 ```python
 mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.54, .38, .35], stripe_s = 8,
-                  light = [-math.pi/4, 1., .1],
                   coord = [-0.19569582393630502,
                            -0.19569331188751315,
                            1.1000276413181806,
                            1.10002905416902])
-mand.draw('lightning.jpg')
+mand.draw('lightning.png')
 ```
-![](img/lightning.jpg)
+![](img/lightning.png)
 
 ```python
-mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.60, .57, .45], stripe_s = 12,
-                  light = [0, 1., .1],
+mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.47, .51, .63], step_s = 20,
+                  coord = [-1.7497082019887222,
+                           -1.749708201971718,
+                           -1.3693697170765535e-07,
+                           -1.369274301311596e-07])
+mand.draw('web.png')
+```
+![](img/web.png)
+
+```python
+mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.6, .57, .45], stripe_s = 12,
                   coord = [-1.8605721473418524,
                            -1.860572147340747,
                            -3.1800170324714687e-06,
                            -3.180016406837821e-06])
-mand.draw('wave.jpg')
+mand.draw('wave.png')
 ```
-![](img/wave.jpg)
+![](img/wave.png)
 
 ```python
-mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.63, .83, .98], stripe_s = 0,
-                  light = [math.pi/2, 1., .25],
+mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.63, .83, .98],
                   coord = [-0.7545217835886875,
                            -0.7544770820676441,
                            0.05716740181493137,
                            0.05719254327783547])
-mand.draw('tiles.jpg')
+mand.draw('tiles.png')
 ```
-![](img/tiles.jpg)
+![](img/tiles.png)
 
+```python
+mand = Mandelbrot(maxiter = 5000, rgb_thetas = [.29, .52, .59], stripe_s = 5,
+                  coord = [-1.6241199193994318,
+                           -1.624119919281773,
+                           -0.00013088931048083944,
+                           -0.0001308892443058033])
+mand.draw('velvet.png')
+```
+![](img/velvet.png)
 
 ## Runtime 🚀
 

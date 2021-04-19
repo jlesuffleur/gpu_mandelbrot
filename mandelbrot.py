@@ -494,7 +494,7 @@ class Mandelbrot():
                       y - yrange * s,
                       y + yrange * s]      
        
-    def animate(self, x, y, file_out, n_frames=140, loop=True):
+    def animate(self, x, y, file_out, n_frames=150, loop=True):
         """Animated zoom to GIF file
    
         Note that the Mandelbrot object is modified by this function
