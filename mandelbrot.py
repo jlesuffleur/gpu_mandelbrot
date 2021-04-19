@@ -258,9 +258,6 @@ def color_pixel(matxy, niter, stripe_a, step_s, dem, normal, colortable,
         # Clipping to [0,1]
         matxy[i] = max(0,min(1, matxy[i]))
         
-        
-    
-
 @jit
 def compute_set(creal, cim, maxiter, colortable, ncycle, stripe_s, stripe_sig,
                 step_s, diag, light):
@@ -347,7 +344,8 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
         # Initialization of c
         c = complex(creal, cim)
         # Get smooth iteration count
-        niter, stripe_a, dem, normal = smooth_iter(c, maxiter, stripe_s, stripe_sig)
+        niter, stripe_a, dem, normal = smooth_iter(c, maxiter, stripe_s,
+                                                   stripe_sig)
         # If escaped: color the set
         if niter > 0:
             color_pixel(mat[y,x,], niter, stripe_a, step_s, dem/diag, normal,
@@ -381,11 +379,13 @@ class Mandelbrot():
                 oversampling_size. Then, the average color of the n*n pixels
                 is taken. Set to 1 for no oversampling.
             stripe_s:
-                stripe density: frequency parameter of stripe average coloring
+                stripe density: frequency parameter of stripe average coloring.
+                Set to 0 for no stripes.
             stripe_sig:
                 memory parameter of stripe average coloring
             step_s:
-                step density: frequency parameter of step coloring
+                step density: frequency parameter of step coloring. Set to 0
+                for no steps.
             light: [float, float, float]
                 light vector: angle direction [0-1], angle azimuth [0-1],
                 opacity [0,1], k_ambiant, k_diffuse, k_spectral, shininess
@@ -498,7 +498,7 @@ class Mandelbrot():
                       y - yrange * s,
                       y + yrange * s]      
        
-    def animate(self, x, y, file_out, n_frames=100, loop=True):
+    def animate(self, x, y, file_out, n_frames=140, loop=True):
         """Animated zoom to GIF file
    
         Note that the Mandelbrot object is modified by this function
@@ -515,12 +515,12 @@ class Mandelbrot():
             loop: boolean
                 loop back to original coordinates
         """        
-        # Zoom scale: gaussian shape, from 0% (s=1) to 40% (s=0.6)
+        # Zoom scale: gaussian shape, from 0% (s=1) to 30% (s=0.7)
         # => zoom scale (i.e. speed) is increasing, then decreasing
         def gaussian(n, sig = 1):
             x = np.linspace(-1, 1, n)
             return np.exp(-np.power(x, 2.) / (2 * np.power(sig, 2.)))
-        s = 1 - gaussian(n_frames, 1/2)*.4
+        s = 1 - gaussian(n_frames, 1/2)*.3
        
         # Update in case it was not up to date (e.g. parameters changed)
         self.update_set()
