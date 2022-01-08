@@ -12,20 +12,18 @@ smoothly colored with custom colortables.
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from numba import jit
+from numba import jit, cuda
 from matplotlib.widgets import Slider
-from numba import cuda
 from PIL import Image
 import imageio
 
-def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
+def sin_colortable(rgb_thetas=(.85, .0, .15), ncol=2**12):
     """ Sinusoidal color table
    
     Cyclic and smooth color table made with a sinus function for each color
-    channel
-   
+    channel   
     Args:
-        rgb_thetas: [float, float, float]
+        rgb_thetas: (float, float, float)
             phase for each color channel
         ncol: int
             number of color in the output table
@@ -46,21 +44,29 @@ def sin_colortable(rgb_thetas=[.85, .0, .15], ncol=2**12):
 
 @jit
 def blinn_phong(normal, light):
+    """ Blinn-Phong shading algorithm
+   
+    Brightess computed by Blinn-Phong shading algorithm, for one pixel,
+    given the normal and the light vectors
+
+    Returns:
+        float: Blinn-Phong brightness
+    """
     ## Lambert normal shading (diffuse light)
     normal = normal / abs(normal)    
     
-    # theta: light angle; phi: light azimuth
+    # theta: light azimuth; phi: light elevation
     # light vector: [cos(theta)cos(phi), sin(theta)cos(phi), sin(phi)]
     # normal vector: [normal.real, normal.imag, 1]
     # Diffuse light = dot product(light, normal)
     ldiff = (normal.real*math.cos(light[0])*math.cos(light[1]) +
-               normal.imag*math.sin(light[0])*math.cos(light[1]) + 
-               1*math.sin(light[1]))
+             normal.imag*math.sin(light[0])*math.cos(light[1]) +
+             1*math.sin(light[1]))
     # Normalization
     ldiff = ldiff/(1+1*math.sin(light[1]))
     
     ## Specular light: Blinn Phong shading
-    # Phi half: average between phi and pi/2 (viewer azimuth)
+    # Phi half: average between pi/2 and phi (viewer elevation)
     # Specular light = dot product(phi_half, normal)
     phi_half = (math.pi/2 + light[1])/2
     lspec = (normal.real*math.cos(light[0])*math.sin(phi_half) +
@@ -75,7 +81,7 @@ def blinn_phong(normal, light):
     bright = light[3] + light[4]*ldiff + light[5]*lspec
     ## Add intensity
     bright = bright * light[2] + (1-light[2])/2 
-    return(bright)
+    return bright
     
 @jit
 def smooth_iter(c, maxiter, stripe_s, stripe_sig):
@@ -148,7 +154,6 @@ def smooth_iter(c, maxiter, stripe_s, stripe_sig):
 
             # Normal vector for lighting
             u = z/dz
-            #u = u/abs(u)
             normal = u # 3D vector (u.real, u.imag. 1)
 
             # Milton's distance estimator
@@ -223,7 +228,6 @@ def color_pixel(matxy, niter, stripe_a, step_s, dem, normal, colortable,
     shader = 0
     # Stripe shading
     if stripe_a > 0:
-        #bright = overlay(bright, stripe_a, 1) * (1-dem) + dem * bright
         nshader += 1
         shader = shader + stripe_a
     # Step shading
@@ -350,10 +354,10 @@ def compute_set_gpu(mat, xmin, xmax, ymin, ymax, maxiter, colortable, ncycle,
 class Mandelbrot():
     """Mandelbrot set object"""
     def __init__(self, xpixels=1280, maxiter=500,
-                 coord=[-2.6, 1.845, -1.25, 1.25], gpu=True, ncycle=32,
-                 rgb_thetas=[.0, .15, .25], oversampling=3, stripe_s=0,
+                 coord=(-2.6, 1.845, -1.25, 1.25), gpu=True, ncycle=32,
+                 rgb_thetas=(.0, .15, .25), oversampling=3, stripe_s=0,
                  stripe_sig=.9, step_s=0,
-                 light = [.125, .5, .75, .2, .5, .5, 20]):
+                 light = (45., 45., .75, .2, .5, .5, 20)):
         """Mandelbrot set object
    
         Args:
@@ -368,8 +372,8 @@ class Mandelbrot():
                 use CUDA on GPU to compute the set
             ncycle: float
                 number of iteration before cycling the colortable
-            colortable: ndarray(dtype=uint8, ndim=2)
-                color table used to color the set (preferably cyclic)
+            rgb_thetas: (float, float, float)
+                phase for each color channel
             oversampling: int
                 for each pixel, a [n, n] grid is computed where n is the
                 oversampling_size. Then, the average color of the n*n pixels
@@ -382,11 +386,12 @@ class Mandelbrot():
             step_s:
                 step density: frequency parameter of step coloring. Set to 0
                 for no steps.
-            light: [float, float, float]
-                light vector: angle direction [0-1], angle azimuth [0-1],
+            light: (float, float, float)
+                light vector: angle azimuth [0-360], angle elevation [0-90],
                 opacity [0,1], k_ambiant, k_diffuse, k_spectral, shininess
            
         """
+        self.explorer = None
         self.xpixels = xpixels
         self.maxiter = maxiter
         self.coord = coord
@@ -399,8 +404,8 @@ class Mandelbrot():
         self.step_s = step_s
         # Light angles mapping
         self.light = np.array(light)
-        self.light[0] = 2*math.pi*self.light[0]
-        self.light[1] = math.pi/2*self.light[1]
+        self.light[0] = 2*math.pi*self.light[0]/360
+        self.light[1] = math.pi/2*self.light[1]/90
         # Compute ypixels so the image is not stretched (1:1 ratio)
         self.ypixels = round(self.xpixels / (self.coord[1]-self.coord[0]) *
                              (self.coord[3]-self.coord[2]))
@@ -422,7 +427,7 @@ class Mandelbrot():
         xp = self.xpixels*self.os
         yp = self.ypixels*self.os
        
-        if(self.gpu):
+        if self.gpu:
             # Pixel mapping is done in compute_self_gpu
             self.set = np.zeros((yp, xp, 3))
             # Compute set with GPU:
@@ -530,7 +535,7 @@ class Mandelbrot():
             images.append(self.set)
            
         # Go backward, one image in two (i.e. 2x speed)
-        if(loop):
+        if loop:
             images += images[::-2]
         # Make GIF
         imageio.mimsave(file_out, images)  
@@ -539,10 +544,10 @@ class Mandelbrot():
         """Run the Mandelbrot explorer: a Matplotlib GUI"""
         # It is important to keep track of the object in a variable, so the
         # slider and button are responsive
-        self.explorer = Mandelbrot_explorer(self, dpi)
+        self.explorer = MandelbrotExplorer(self, dpi)
 
 
-class Mandelbrot_explorer():
+class MandelbrotExplorer():
     """A Matplotlib GUI to explore the Mandelbrot set"""
     def __init__(self, mand, dpi=72):
         self.mand = mand
@@ -581,11 +586,11 @@ class Mandelbrot_explorer():
         self.sld_s = Slider(plt.axes([0.7, 0.17, 0.2, 0.02]), 'stripe_s',
                             0, 32, mand.stripe_s, valstep=1)
         self.sld_s.on_changed(self.update_val)
-        self.sld_li1 = Slider(plt.axes([0.7, 0.14, 0.2, 0.02]), 'light_angle',
-                              0, 1, mand.light[0]/(2*math.pi), valstep=.01)
+        self.sld_li1 = Slider(plt.axes([0.7, 0.14, 0.2, 0.02]), 'light_azimuth',
+                              0, 360, 360*mand.light[0]/(2*math.pi), valstep=1)
         self.sld_li1.on_changed(self.update_val)
-        self.sld_li2 = Slider(plt.axes([0.7, 0.12, 0.2, 0.02]), 'light_azim',
-                              0, 1, mand.light[1]/(math.pi/2), valstep=.01)
+        self.sld_li2 = Slider(plt.axes([0.7, 0.12, 0.2, 0.02]), 'light_elevation',
+                              0, 90, 90*mand.light[1]/(math.pi/2), valstep=1)
         self.sld_li2.on_changed(self.update_val)
         self.sld_li3 = Slider(plt.axes([0.7, 0.10, 0.2, 0.02]), 'light_i',
                               0, 1, mand.light[2], valstep=.01)
@@ -613,27 +618,28 @@ class Mandelbrot_explorer():
                                                 self.onclick)
         plt.show()
        
-    def update_val(self, val):
+    def update_val(self, _):
         """Slider interactivity: update object values"""
         rgb = [x + self.sld_p.val for x in [self.sld_r.val, self.sld_g.val,
                                             self.sld_b.val]]
-        self.mand.rgb_thetas = rgb
+        self.mand.rgb_thetas = tuple(rgb)
         self.mand.colortable = sin_colortable(rgb)
         self.mand.maxiter = self.sld_maxit.val
         self.mand.ncycle = self.sld_n.val
         self.mand.stripe_s = self.sld_s.val
         self.mand.step_s = self.sld_st.val
-        self.mand.light = np.array([2*math.pi*self.sld_li1.val,
-                           math.pi/2*self.sld_li2.val, self.sld_li3.val,
-                           self.sld_li4.val, self.sld_li5.val, 
-                           self.sld_li6.val, self.sld_li7.val])
+        self.mand.light = (2*math.pi*self.sld_li1.val/360,
+                           math.pi/2*self.sld_li2.val/90,
+                           self.sld_li3.val,
+                           self.sld_li4.val, self.sld_li5.val,
+                           self.sld_li6.val, self.sld_li7.val)
         self.mand.update_set()
         self.graph.set_data(self.mand.set)
         plt.draw()      
         plt.show()
        
     def onclick(self, event):
-        """Event interactivity function"""
+        """Click & scroll interactivity: zoom in/out"""
         # This function is called by any click/scroll
         if event.inaxes == self.ax:
             # Click or scroll in the main axe: zoom event
@@ -654,3 +660,4 @@ class Mandelbrot_explorer():
 
 if __name__ == "__main__":
     Mandelbrot().explore()
+    
