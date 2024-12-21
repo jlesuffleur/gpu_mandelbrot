@@ -561,51 +561,51 @@ class MandelbrotExplorer():
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.axis('off')
         
-        ## Sliders
-        self.sld_maxit = Slider(plt.axes([0.1, 0.005, 0.2, 0.02]),'Iterations',
-                                0, 5000, mand.maxiter, valstep=5)
+        ## Sliders class matplotlib.widgets.Slider(ax, label, v, valmax, *, valinit=0.5, valfmt=None, closedmin=True, closedmax=True, slidermin=None, slidermax=None, dragging=True, valstep=None, orientation='horizontal', initcolor='r', track_color='lightgrey', handle_style=None, **kwargs)
+        self.sld_maxit = Slider(ax=plt.axes([0.1, 0.005, 0.2, 0.02]), label='Iterations',
+                                valmin=0, valmax=5000, valinit=mand.maxiter, valstep=5)
         self.sld_maxit.on_changed(self.update_val)
-        self.sld_r = Slider(plt.axes([0.1, 0.04, 0.2, 0.02]), 'R',
-                            0, 1, mand.rgb_thetas[0], valstep=.001)
+        self.sld_r = Slider(ax=plt.axes([0.1, 0.04, 0.2, 0.02]), label='R',
+                           valmin=0, valmax=1, valinit=mand.rgb_thetas[0], valstep=.001)
         self.sld_r.on_changed(self.update_val)
-        self.sld_g = Slider(plt.axes([0.1, 0.06, 0.2, 0.02]), 'G',
-                            0, 1, mand.rgb_thetas[1], valstep=.001)
+        self.sld_g = Slider(ax=plt.axes([0.1, 0.06, 0.2, 0.02]), label='G',
+                            valmin=0,valmax= 1, valinit=mand.rgb_thetas[1], valstep=.001)
         self.sld_g.on_changed(self.update_val)
-        self.sld_b = Slider(plt.axes([0.1, 0.08, 0.2, 0.02]), 'B',
-                            0, 1, mand.rgb_thetas[2], valstep=.001)
+        self.sld_b = Slider(ax=plt.axes([0.1, 0.08, 0.2, 0.02]), label='B',
+                            valmin=0,valmax= 1, valinit=mand.rgb_thetas[2], valstep=.001)
         self.sld_b.on_changed(self.update_val)
-        self.sld_n = Slider(plt.axes([0.1, 0.10, 0.2, 0.02]), 'ncycle',
-                            0, 200, mand.ncycle, valstep=1)
+        self.sld_n = Slider(ax=plt.axes([0.1, 0.10, 0.2, 0.02]), label='ncycle',
+                            valmin=0,valmax= 200, valinit=mand.ncycle, valstep=1)
         self.sld_n.on_changed(self.update_val)
-        self.sld_p = Slider(plt.axes([0.1, 0.12, 0.2, 0.02]), 'phase',
-                            0, 1, 0, valstep=0.001)
+        self.sld_p = Slider(ax=plt.axes([0.1, 0.12, 0.2, 0.02]), label='phase',
+                            valmin=0,valmax= 1, valinit=0, valstep=0.001)
         self.sld_p.on_changed(self.update_val)
-        self.sld_st = Slider(plt.axes([0.7, 0.19, 0.2, 0.02]), 'step_s',
-                             0, 100, mand.step_s, valstep=1)
+        self.sld_st = Slider(ax=plt.axes([0.7, 0.19, 0.2, 0.02]), label='step_s',
+                             valmin=0,valmax= 100, valinit=mand.step_s, valstep=1)
         self.sld_st.on_changed(self.update_val)
-        self.sld_s = Slider(plt.axes([0.7, 0.17, 0.2, 0.02]), 'stripe_s',
-                            0, 32, mand.stripe_s, valstep=1)
+        self.sld_s = Slider(ax=plt.axes([0.7, 0.17, 0.2, 0.02]), label='stripe_s',
+                            valmin=0,valmax= 32, valinit=mand.stripe_s, valstep=1)
         self.sld_s.on_changed(self.update_val)
-        self.sld_li1 = Slider(plt.axes([0.7, 0.14, 0.2, 0.02]), 'light_azimuth',
-                              0, 360, 360*mand.light[0]/(2*math.pi), valstep=1)
+        self.sld_li1 = Slider(ax=plt.axes([0.7, 0.14, 0.2, 0.02]), label='light_azimuth',
+                              valmin=0,valmax= 360, valinit=360*mand.light[0]/(2*math.pi), valstep=1)
         self.sld_li1.on_changed(self.update_val)
-        self.sld_li2 = Slider(plt.axes([0.7, 0.12, 0.2, 0.02]), 'light_elevation',
-                              0, 90, 90*mand.light[1]/(math.pi/2), valstep=1)
+        self.sld_li2 = Slider(ax=plt.axes([0.7, 0.12, 0.2, 0.02]), label='light_elevation',
+                              valmin=0,valmax= 90,valinit=90*mand.light[1]/(math.pi/2), valstep=1)
         self.sld_li2.on_changed(self.update_val)
-        self.sld_li3 = Slider(plt.axes([0.7, 0.10, 0.2, 0.02]), 'light_i',
-                              0, 1, mand.light[2], valstep=.01)
+        self.sld_li3 = Slider(ax=plt.axes([0.7, 0.10, 0.2, 0.02]), label='light_i',
+                              valmin=0,valmax= 1, valinit=mand.light[2], valstep=.01)
         self.sld_li3.on_changed(self.update_val)
-        self.sld_li4 = Slider(plt.axes([0.7, 0.08, 0.2, 0.02]), 'k_ambiant',
-                              0, 1, mand.light[3], valstep=.01)
+        self.sld_li4 = Slider(ax=plt.axes([0.7, 0.08, 0.2, 0.02]), label='k_ambiant',
+                              valmin=0,valmax= 1, valinit=mand.light[3], valstep=.01)
         self.sld_li4.on_changed(self.update_val)
-        self.sld_li5 = Slider(plt.axes([0.7, 0.06, 0.2, 0.02]), 'k_diffuse',
-                              0, 1, mand.light[4], valstep=.01)
+        self.sld_li5 = Slider(ax=plt.axes([0.7, 0.06, 0.2, 0.02]), label='k_diffuse',
+                              valmin=0,valmax= 1, valinit=mand.light[4], valstep=.01)
         self.sld_li5.on_changed(self.update_val)
-        self.sld_li6 = Slider(plt.axes([0.7, 0.04, 0.2, 0.02]), 'k_specular',
-                              0, 1, mand.light[5], valstep=.01)
+        self.sld_li6 = Slider(ax=plt.axes([0.7, 0.04, 0.2, 0.02]), label='k_specular',
+                              valmin=0,valmax= 1, valinit=mand.light[5], valstep=.01)
         self.sld_li6.on_changed(self.update_val)
-        self.sld_li7 = Slider(plt.axes([0.7, 0.02, 0.2, 0.02]), 'shininess',
-                              1, 100, mand.light[6], valstep=1)
+        self.sld_li7 = Slider(ax=plt.axes([0.7, 0.02, 0.2, 0.02]), label='shininess',
+                              valmin=1,valmax= 100, valinit=mand.light[6], valstep=1)
         self.sld_li7.on_changed(self.update_val)
         
         ## Zoom events
